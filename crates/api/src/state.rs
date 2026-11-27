@@ -4,8 +4,6 @@ use hrms_core::{IndiaPayrollConfig, PayrollEngine};
 use sqlx::PgPool;
 
 use crate::auth::AuthConfig;
-use crate::queue::JobQueue;
-use crate::realtime::DashboardHub;
 use crate::storage::ObjectStorage;
 
 /// Organisation-level settings that are not statutory (those live in
@@ -44,9 +42,7 @@ pub struct AppState {
     pub config: Arc<IndiaPayrollConfig>,
     pub engine: Arc<PayrollEngine>,
     pub auth: Arc<AuthConfig>,
-    pub hub: Arc<DashboardHub>,
     pub storage: Arc<ObjectStorage>,
-    pub queue: Arc<JobQueue>,
     pub settings: Arc<Settings>,
 }
 
@@ -55,9 +51,7 @@ impl AppState {
         db: PgPool,
         config: IndiaPayrollConfig,
         auth: AuthConfig,
-        hub: Arc<DashboardHub>,
         storage: Arc<ObjectStorage>,
-        queue: Arc<JobQueue>,
         settings: Settings,
     ) -> Self {
         let config = Arc::new(config);
@@ -66,9 +60,7 @@ impl AppState {
             engine: Arc::new(PayrollEngine::new((*config).clone())),
             config,
             auth: Arc::new(auth),
-            hub,
             storage,
-            queue,
             settings: Arc::new(settings),
         }
     }

@@ -1,15 +1,11 @@
 //! `hrms-api` — on-premises HRMS for call centres.
 //!
-//! Boot order: env → statutory config → Postgres (migrate) → Redis/MinIO
-//! (optional) → metrics ticker + job worker → HTTP/WebSocket server.
+//! Boot order: env → statutory config → Postgres (migrate) → MinIO (optional)
+//! → HTTP server.
 
 mod auth;
 mod error;
-mod jobs;
-mod metrics;
 mod pdf;
-mod queue;
-mod realtime;
 mod routes;
 mod state;
 mod storage;
@@ -27,8 +23,6 @@ use tower_http::compression::CompressionLayer;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 
-use crate::queue::JobQueue;
-use crate::realtime::DashboardHub;
 use crate::state::{AppState, Settings};
 use crate::storage::ObjectStorage;
 
@@ -59,32 +53,12 @@ async fn main() -> anyhow::Result<()> {
     sqlx::migrate!("../../migrations").run(&db).await?;
 
     let auth = auth::AuthConfig::from_env();
-    let hub = Arc::new(DashboardHub::new());
     let storage = Arc::new(ObjectStorage::connect().await);
-    let queue = Arc::new(
-        JobQueue::connect(&std::env::var("REDIS_URL").unwrap_or_default()).await,
-    );
 
-    let state = AppState::new(
-        db,
-        config,
-        auth,
-        hub,
-        storage,
-        queue,
-        (*settings).clone(),
-    );
-
-    // Prime the dashboard so the first client sees real numbers immediately.
-    if let Err(err) = metrics::refresh(&state, true).await {
-        tracing::warn!("initial metrics computation failed: {err}");
-    }
-    spawn_metrics_ticker(state.clone());
-    jobs::spawn_worker(state.clone());
+    let state = AppState::new(db, config, auth, storage, (*settings).clone());
 
     let app = Router::new()
         .merge(routes::api_routes())
-        .route("/ws/dashboard", get(realtime::ws_dashboard))
         .route("/health", get(health))
         .route("/health/ready", get(ready))
         .with_state(state)
@@ -104,18 +78,6 @@ async fn main() -> anyhow::Result<()> {
         .with_graceful_shutdown(shutdown_signal())
         .await?;
     Ok(())
-}
-
-fn spawn_metrics_ticker(state: AppState) {
-    tokio::spawn(async move {
-        let mut ticker = tokio::time::interval(Duration::from_secs(60));
-        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-        ticker.tick().await; // the first tick is immediate; skip it
-        loop {
-            ticker.tick().await;
-            metrics::tick(&state).await;
-        }
-    });
 }
 
 fn cors_layer(origin: &str) -> CorsLayer {
@@ -148,9 +110,7 @@ async fn ready(State(state): State<AppState>) -> (StatusCode, Json<serde_json::V
     let body = json!({
         "status": if database_ok { "ready" } else { "degraded" },
         "database": if database_ok { "up" } else { "down" },
-        "redis_queue": if state.queue.enabled() { "up" } else { "disabled" },
         "object_storage": if state.storage.enabled() { "up" } else { "disabled" },
-        "dashboard_subscribers": state.hub.receiver_count(),
     });
     let code = if database_ok {
         StatusCode::OK

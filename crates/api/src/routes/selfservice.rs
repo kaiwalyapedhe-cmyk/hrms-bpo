@@ -4,7 +4,6 @@ use axum::extract::{Path, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{Datelike, Utc};
-use rust_decimal::Decimal;
 use serde::Serialize;
 use sqlx::FromRow;
 use utoipa::ToSchema;
@@ -30,7 +29,6 @@ pub struct MeSummary {
     pub today_shift: serde_json::Value,
     pub open_goals: serde_json::Value,
     pub unread_notifications: i64,
-    pub aux_state: serde_json::Value,
 }
 
 /// Everything an employee needs on the self-service home page.
@@ -112,19 +110,6 @@ pub async fn me_summary(
     .fetch_one(&state.db)
     .await?;
 
-    let aux_state: serde_json::Value = sqlx::query_scalar(
-        r#"select coalesce(jsonb_build_object(
-                     'code', ac.code, 'category', ac.category, 'colour', ac.colour,
-                     'since', s.started_at), '{}'::jsonb)
-           from agent_aux_state s join aux_codes ac on ac.id = s.aux_code_id
-           where s.employee_id = $1 and s.ended_at is null
-           order by s.started_at desc limit 1"#,
-    )
-    .bind(employee_id)
-    .fetch_optional(&state.db)
-    .await?
-    .unwrap_or_else(|| serde_json::json!({}));
-
     let unread_notifications: i64 = sqlx::query_scalar(
         "select count(*) from notifications where employee_id = $1 and not read",
     )
@@ -139,7 +124,6 @@ pub async fn me_summary(
         today_shift,
         open_goals,
         unread_notifications,
-        aux_state,
     }))
 }
 
@@ -199,9 +183,6 @@ pub struct ManagerOverview {
     pub pending_timesheets: i64,
     pub pending_leave: i64,
     pub pending_overtime: i64,
-    pub calls_today: i64,
-    pub avg_qa_score: Option<Decimal>,
-    pub avg_csat: Option<Decimal>,
 }
 
 /// Manager/TeamLead home: team headcount and the approvals waiting on them.
@@ -224,15 +205,7 @@ pub async fn manager_overview(
              (select count(*) from leave_requests r join employees e on e.id = r.employee_id
               where r.status = 'pending' and ($1::uuid is null or e.manager_id = $1)) as pending_leave,
              (select count(*) from ot_requests o join employees e on e.id = o.employee_id
-              where o.status = 'pending' and ($1::uuid is null or e.manager_id = $1)) as pending_overtime,
-             (select count(*) from cdr_records c join employees e on e.id = c.employee_id
-              where c.call_start::date = current_date and ($1::uuid is null or e.manager_id = $1)) as calls_today,
-             (select avg(q.weighted_pct) from qa_scores q join employees e on e.id = q.employee_id
-              where q.evaluated_at >= now() - interval '7 days'
-                and ($1::uuid is null or e.manager_id = $1)) as avg_qa_score,
-             (select avg(q.csat_score) from qa_scores q join employees e on e.id = q.employee_id
-              where q.evaluated_at >= now() - interval '7 days'
-                and ($1::uuid is null or e.manager_id = $1)) as avg_csat"#,
+              where o.status = 'pending' and ($1::uuid is null or e.manager_id = $1)) as pending_overtime"#,
     )
     .bind(manager_id)
     .fetch_one(&state.db)

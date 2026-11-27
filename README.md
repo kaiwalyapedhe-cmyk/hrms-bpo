@@ -1,19 +1,18 @@
 # Sampark HRMS — on-premises HCM for contact centres
 
 A self-hosted HRMS written in Rust, benchmarked against **Oracle PeopleSoft HCM 9.2**
-module-by-module, with an **India statutory payroll engine**, a **real-time WebSocket KPI
-dashboard** and a Docker Compose deployment that runs entirely inside your network.
+module-by-module, with an **India statutory payroll engine** and a Docker Compose deployment
+that runs entirely inside your network.
 
 | | |
 |---|---|
 | Backend | axum 0.8, sqlx 0.8 (PostgreSQL 16), tokio, JWT (jsonwebtoken), Argon2id, validator |
 | Statutory core | Pure Rust crate `hrms-core` — EPF/EPS, ESI, TDS, PT, gratuity, compliance CSVs |
-| Frontend | Leptos 0.6 CSR → WASM via Trunk, SVG charts, WebSocket with exponential-backoff reconnect |
-| Jobs / queue | Redis 7 through `fred` (`txns`, CDR ingestion queue); payroll runs are synchronous + transactional |
+| Frontend | Leptos 0.6 CSR → WASM via Trunk |
 | Object storage | MinIO via `aws-sdk-s3` (payslip PDFs, exports); optional — files stream inline when unset |
 | PDF | `printpdf`, Indian digit grouping (₹12,34,567) |
 | API docs | utoipa 5 + Swagger UI at `/swagger-ui`, OpenAPI at `/api-docs/openapi.json` |
-| Containers | postgres, redis, minio (+ `mc` init), api, seed, web, nginx — cargo-chef multi-stage builds |
+| Containers | postgres, minio (+ `mc` init), api, seed, web, nginx — cargo-chef multi-stage builds |
 
 ---
 
@@ -22,18 +21,17 @@ dashboard** and a Docker Compose deployment that runs entirely inside your netwo
 ```mermaid
 flowchart LR
   subgraph Edge["Edge (host network)"]
-    NG["nginx :80<br/>/ → SPA · /api → api · /ws → api"]
+    NG["nginx :80<br/>/ → SPA · /api → api"]
   end
 
   subgraph App["Application"]
     WEB["web container<br/>Trunk/WASM bundle + static nginx"]
-    API["api container (axum :8080)<br/>REST /api · WS /ws/dashboard<br/>Swagger /swagger-ui"]
+    API["api container (axum :8080)<br/>REST /api · Swagger /swagger-ui"]
     SEED["seed container<br/>hrms-seed (one-shot)"]
   end
 
   subgraph Data["State"]
-    PG[("PostgreSQL 16<br/>HR, time, payroll, QA, audit")]
-    RD[("Redis 7<br/>job queue / CDR ingest")]
+    PG[("PostgreSQL 16<br/>HR, time, payroll, audit")]
     MO[("MinIO<br/>PDFs, exports")]
   end
 
@@ -46,29 +44,18 @@ flowchart LR
   USER(["Browser<br/>Manager / TL / Agent / QA / Admin"]) --> NG
   NG --> WEB
   NG --> API
-  API -- "broadcast (tokio::sync::broadcast)" --> API
   API --> PG
-  API --> RD
   API --> MO
   API --> ENG
   ENG --> CFG
   API --> COMP
   SEED --> PG
-  RD -- "worker: rpop" --> API
-  API -. "CDR CSV / punch / QA / aux events<br/>metric_delta · agent_status frames" .-> NG
 ```
 
-**Request path.** `nginx` terminates HTTP and forwards `/` to the static SPA, `/api/*` to axum,
-`/ws/*` with the upgrade headers intact. The API authenticates every route with a JWT
-(`Authorization: Bearer`), or `?token=` for the WebSocket, and enforces role bounds in
-extractor types (`AuthUser<PeopleAdmin>`, `AuthUser<PayrollAdmin>`, `AuthUser<Supervisor>`, …).
-
-**Real-time path.** `DashboardHub` owns a `tokio::sync::broadcast` channel plus the last-known
-metric map and agent-status map. CDR ingestion, punches, QA submissions and aux changes call
-`publish_metrics` / `publish_agent`; a 60-second ticker recomputes occupancy, shrinkage,
-adherence and publishes only values that actually changed. Each connected socket receives a
-scoped snapshot on connect (`full`, `workforce`, `quality_only`, `personal`) and delta frames
-afterwards. The Leptos client patches signals per frame — no page reload.
+**Request path.** `nginx` terminates HTTP and forwards `/` to the static SPA and `/api/*` to
+axum. The API authenticates every route with a JWT (`Authorization: Bearer`) and enforces role
+bounds in extractor types (`AuthUser<PeopleAdmin>`, `AuthUser<PayrollAdmin>`,
+`AuthUser<Supervisor>`, …).
 
 ---
 
@@ -91,8 +78,7 @@ afterwards. The Leptos client patches signals per frame — no page reload.
 | Talent Acquisition Manager | HRS_REQ, HRS_APP, interview, offer | `recruiting.rs`; requisitions, pipeline stages, interviews + feedback, offers + candidate response |
 | Candidate Gateway | External careers site | Public `GET /api/careers/requisitions`, `POST /api/careers/apply` |
 | Employee Self-Service | MSS/ESS | `selfservice.rs` `GET /api/me/summary`, notifications, punches, leave, payslips; SPA "My workspace" |
-| Manager Self-Service | MSS approvals | `GET /api/manager/overview`, timesheet/leave/OT decision endpoints, SPA "Team" |
-| Call-centre extensions | n/a | QA forms + weighted scores + CSAT, aux codes + agent aux state + adherence, CDR CSV ingestion, KPI snapshots and live dashboard |
+| Manager Self-Service | MSS approvals | `GET /api/manager/overview`, timesheet/leave/OT decision endpoints |
 
 ---
 
@@ -102,7 +88,7 @@ afterwards. The Leptos client patches signals per frame — no page reload.
 .
 ├── Cargo.toml                       # workspace: core, api, web, seed
 ├── Cargo.lock
-├── docker-compose.yml               # postgres, redis, minio, api, seed, web, nginx
+├── docker-compose.yml               # postgres, minio, api, seed, web, nginx
 ├── .env.example
 ├── config/
 │   └── india_payroll.toml           # every statutory rate/ceiling/slab + source-year comments
@@ -112,30 +98,28 @@ afterwards. The Leptos client patches signals per frame — no page reload.
 │   │   ├── src/india/{engine,epf,esi,tds,pt,gratuity}.rs
 │   │   └── tests/payroll_statutory.rs
 │   ├── api/                         # axum service
-│   │   ├── src/{main,state,auth,error,realtime,metrics,jobs,queue,storage,pdf}.rs
-│   │   └── src/routes/{mod,auth,workforce,time,absence,payroll,benefits,development,recruiting,quality,dashboard,selfservice,admin}.rs
+│   │   ├── src/{main,state,auth,error,storage,pdf}.rs
+│   │   └── src/routes/{mod,auth,workforce,time,absence,payroll,benefits,development,recruiting,selfservice,admin}.rs
 │   ├── web/                         # Leptos CSR SPA
 │   │   ├── index.html, styles.css
-│   │   └── src/{lib,main,app,api,ws}.rs
+│   │   └── src/{lib,main,app,api}.rs
 │   └── seed/                        # hrms-seed demo data binary
-├── migrations/                      # sqlx migrations 0001…0007
+├── migrations/                      # sqlx migrations 0001…0006
 │   ├── 0001_core_hr.sql
 │   ├── 0002_time_absence.sql
 │   ├── 0003_payroll.sql
 │   ├── 0004_benefits.sql
 │   ├── 0005_development_recruiting.sql
-│   ├── 0006_call_center.sql
-│   └── 0007_platform.sql
+│   └── 0006_platform.sql
 ├── docker/
 │   ├── api.Dockerfile               # cargo-chef multi-stage → debian-slim
 │   ├── web.Dockerfile               # trunk build → nginx static
 │   ├── web-static.conf
-│   └── nginx.conf                   # edge proxy (/api, /ws, /swagger-ui)
+│   └── nginx.conf                   # edge proxy (/api, /swagger-ui)
 ├── csv-templates/
-│   ├── bulk_employees.csv
-│   └── cdr_import.csv
+│   └── bulk_employees.csv
 └── scripts/
-    ├── smoke.sh                     # endpoint + auth + WebSocket checklist
+    ├── smoke.sh                     # endpoint + auth checklist
     ├── backup.sh                    # pg_dump + MinIO mirror, 7-year retention note
     └── restore.sh
 ```
@@ -152,7 +136,7 @@ docker compose ps               # api should be healthy, seed exited 0
 
 | URL | What |
 |---|---|
-| http://localhost | SPA (login, dashboard, self-service, team, admin) |
+| http://localhost | SPA (login, self-service, time, leave, payslips, admin) |
 | http://localhost/swagger-ui | Swagger UI for the whole API |
 | http://localhost/api-docs/openapi.json | OpenAPI document |
 | http://localhost:8080/health · `/health/ready` | Liveness and dependency readiness |
@@ -167,14 +151,13 @@ role: super_admin
 ```
 
 Only the SuperAdmin account is seeded; the 20 demo employees have no logins (they exist so
-dashboard, payroll, QA and approvals have data). Create more users in
+payroll and approvals have data). Create more users in
 `POST /api/admin/users` and link an `employee_id` to give an agent self-service scope.
 
 **Seed contents** (idempotent — exits early when `admin@hrms.local` exists): 4 locations,
 departments, positions, 20 employees across KA/MH/WB/TN (1001–1020, including a fixed-term
 agent), salary structures + compensation, leave types/balances/requests, shifts, punches,
-timesheets, overtime, aux history, 72 CDRs, a QA form with weighted scores, 7 days of KPI
-snapshots, benefit plans/enrollments/dependents, courses + certifications, goals/reviews,
+timesheets, overtime, benefit plans/enrollments/dependents, courses + certifications, goals/reviews,
 competencies, requisitions/candidates/interviews/offers, plus a fully computed payroll run
 for the previous month with payslips and payroll messages.
 
@@ -182,11 +165,10 @@ for the previous month with payslips and payroll messages.
 
 ```bash
 # state only
-docker compose up -d postgres redis minio minio-init
+docker compose up -d postgres minio minio-init
 
 export DATABASE_URL=postgres://hrms:hrms_dev_password@localhost:5432/hrms
 export JWT_SECRET=local-dev-secret-change-me
-export REDIS_URL=redis://localhost:6379
 export S3_ENDPOINT=http://localhost:9000 S3_BUCKET=hrms \
        S3_ACCESS_KEY=hrmsadmin S3_SECRET_KEY=hrms_dev_password
 
@@ -315,34 +297,8 @@ same paths). Highlights:
 | Benefits | `/api/benefits/plans`, `/enrollments` (+ `/:id/terminate`), `/dependents` |
 | Development | `/api/training/courses`, `/sessions`, `/enrollments` (+ `/:id/complete`), `/certifications`, `/performance/goals` (+ checkpoints/progress), `/performance/reviews`, `/profile/competencies`, `/profile/ratings` |
 | Recruiting | `/api/recruiting/requisitions` (+ `/:id/status`), `/candidates` (+ `/:id/stage`), `/interviews` (+ `/:id/feedback`), `/offers` (+ `/:id/respond`); public `/api/careers/requisitions`, `/api/careers/apply` |
-| Quality / call centre | `/api/quality/forms`, `/api/quality/scores`, `/api/aux/codes`, `/api/aux/status`, `/api/aux/history`, `/api/cdr/import` (multipart CSV), `/api/cdr` |
-| Dashboard | `GET /api/dashboard/snapshot`, `/api/dashboard/history?hours=`, `/api/dashboard/team` |
 | Self-service | `GET /api/me/summary`, `/api/me/notifications` (+ `/:id/read`), `GET /api/manager/overview` |
 | Admin | `/api/admin/users` (+ `/:id`, `/:id/reset-password`), `/api/admin/audit`, `/api/admin/system` |
-
-### WebSocket protocol
-
-`ws(s)://host/ws/dashboard?token=<JWT>` — nginx upgrades it transparently.
-
-```jsonc
-// on connect (role-scoped)
-{"type":"snapshot","scope":"full","metrics":{"clocked_in":14,"schedule_adherence":92.5,"aht_15m":341.2,"queue_wait":6,"csat_avg":4.3,"occupancy_pct":78.4,...},"agents":[...],"ts":"..."}
-
-// only changed metrics after a punch / CDR / QA / aux event or the 60s tick
-{"type":"metric_delta","metrics":{"aht_15m":338.7,"queue_wait":4},"ts":"..."}
-
-{"type":"agent_status","agent":{"employee_id":"…","employee_name":"Arjun Sharma","aux_code":"ON_CALL","category":"busy","colour":"yellow","since":"…"}}
-
-{"type":"personal_metrics","metrics":{"my_aht":312.0,"my_csat":4.5},"ts":"..."}  // Agent scope
-```
-
-Access: `SuperAdmin`/`Manager`/`TeamLead` → `full`; `QaAnalyst` → `quality_only` (CSAT/QA/AHT);
-`Agent` → `personal` (own metrics and own agent row only); other HR roles → `workforce`
-aggregates. This is enforced server-side when building the snapshot and when filtering frames.
-
-The SPA reconnects with 1s → 2s → 4s … capped at 30s plus jitter, and shows
-`Connecting / Live / Reconnecting` next to the title. Each frame patches only the affected
-signal, so only those cards re-render.
 
 ---
 
@@ -357,9 +313,9 @@ Ten roles (`hrms_core::Role`), enforced by typed extractors in axum and by nav g
 | `payroll_admin` | compensation, payroll runs, reversals, payslips, filings, Form 16 |
 | `benefits_admin` | plans, enrollments, dependents |
 | `recruiter` | requisitions, candidates, interviews, offers, careers gateway |
-| `manager` / `team_lead` | team overview, approvals (timesheets, leave, OT), full dashboard |
-| `agent` | own punches, leave, payslips, personal dashboard metrics |
-| `qa_analyst` | QA forms/scores, CSAT/AHT dashboard panels, aux visibility |
+| `manager` / `team_lead` | team overview, approvals (timesheets, leave, OT) |
+| `agent` | own punches, leave, payslips |
+| `qa_analyst` | read access to people, payroll and self-service views |
 | `trainer` | courses, sessions, enrollments, certifications, competencies |
 
 JWT: HS256, `sub`/`role`/`employee_id` claims, TTL from `JWT_TTL_MINUTES` (default 480).
@@ -394,9 +350,8 @@ BASE=http://localhost:8080 ./scripts/smoke.sh     # direct to the API
 ```
 
 Covers: `/health`, `/health/ready`, Swagger, login, authenticated reads (me, employees,
-dashboard snapshot/history, payslips, leave balances, QA, admin system), anonymous 401, and a
-WebSocket 101 upgrade. Manual follow-up: sign in, watch KPI cards update after
-`POST /api/cdr/import`, punch in/out, and submit a QA score to see deltas arrive.
+payslips, leave balances, admin system) and anonymous 401. Manual follow-up: sign in, punch
+in/out and submit a leave request.
 
 ### Configuration reference
 
@@ -410,7 +365,6 @@ WebSocket 101 upgrade. Manual follow-up: sign in, watch KPI cards update after
 | `ORG_NAME`, `ORG_TAN` | demo values | filing headers |
 | `PF_ESTABLISHMENT_CODE`, `ESI_ESTABLISHMENT_CODE` | demo values | filing headers |
 | `SEED_PASSWORD` | `ChangeMe#2026` | SuperAdmin seed password |
-| `REDIS_URL` | empty | enables the CDR ingest queue; API runs without it |
 | `S3_ENDPOINT`/`S3_BUCKET`/`S3_ACCESS_KEY`/`S3_SECRET_KEY`/`S3_REGION` | empty | enables object storage for PDFs/exports |
 | `HRMS_PAYROLL_CONFIG` | `./config/india_payroll.toml` | statutory config path |
 | `RUST_LOG` | `info,hrms_api=debug,sqlx=warn` | tracing filter |
@@ -420,17 +374,11 @@ WebSocket 101 upgrade. Manual follow-up: sign in, watch KPI cards update after
 * `csv-templates/bulk_employees.csv` → `POST /api/employees/import` (multipart field `file`).
   Required: `emp_no`, `date_of_joining` (`YYYY-MM-DD`). Optional: `first_name`, `last_name`,
   `email`, `phone`, `department_code`, `position_code`, `work_state` (default `KA`),
-  `pan`, `uan`, `extension`, `employment_type`, `gender`.
-* `csv-templates/cdr_import.csv` → `POST /api/cdr/import`. Required: `uniqueid`, `call_start`.
-  Optional: `call_answer`, `call_end`, `direction`, `queue`, `agent_ext` (matched to
-  `employees.extension`), `disposition`, `wait_seconds`, `talk_seconds`, `hold_seconds`,
-  `wrap_seconds`, `abandoned`, `customer_number`. Rows are de-duplicated on `uniqueid`.
+  `pan`, `uan`, `employment_type`, `gender`.
 
 ```bash
 TOKEN=$(curl -s -X POST localhost/api/auth/login -H 'Content-Type: application/json' \
   -d '{"email":"admin@hrms.local","password":"ChangeMe#2026"}' | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
-curl -s -X POST localhost/api/cdr/import -H "Authorization: Bearer $TOKEN" \
-  -F file=@csv-templates/cdr_import.csv
 curl -s -X POST localhost/api/employees/import -H "Authorization: Bearer $TOKEN" \
   -F file=@csv-templates/bulk_employees.csv
 ```
@@ -460,8 +408,6 @@ partial-period proration, overtime double rate, reversal negation, gratuity elig
 | `api` restarts, logs `DATABASE_URL is required` | `.env` missing or not passed — `cp .env.example .env`, then `docker compose up -d` |
 | `sqlx::migrate` checksum error | a migration file changed after being applied. Never edit an applied migration; add a new one, or `docker compose down -v` for a throwaway environment |
 | SPA loads but every call 401 | JWT expired (`JWT_TTL_MINUTES`) or `JWT_SECRET` changed → sign out/in changes; changing the secret invalidates all sessions |
-| Dashboard says *Reconnecting* forever | WebSocket blocked by a proxy. nginx must forward `Upgrade`/`Connection` (see `docker/nginx.conf`); corporate proxies often strip them |
-| `/health/ready` says `redis_queue: disabled` | `REDIS_URL` unset or Redis unreachable — the API still works, CDR import runs inline |
 | Payslip PDF 500 / storage warnings | MinIO unreachable; with `S3_ENDPOINT` unset the API streams generated PDFs inline instead of uploading |
 | PT is zero for an employee | `work_state` is missing or not one of MH/KA/WB/TN; look for `PT_STATE_NOT_CONFIGURED` in payroll messages |
 | EPF looks capped unexpectedly | `epf.ceiling_hike.enabled` still `false`; set it and restart, or check `PF_CEILING_APPLIED` on the payslip |
@@ -479,20 +425,14 @@ partial-period proration, overtime double rate, reversal negation, gratuity elig
 * **TDS is a projection engine**, not a filing engine: annualised gross, exemptions and
   Chapter VI-A caps, surcharge with marginal relief, cess, rebate, spread across remaining
   months. Investment proofs are not collected; declare exemptions through the payroll input.
-* **Payroll runs are synchronous and transactional.** Redis carries the CDR ingestion queue and
-  is deliberately non-critical: without it, imports run inline.
-* **The dashboard tick is 60 seconds** and history retains what the seed/metrics writer stored;
-  no time-series database is used (PostgreSQL only).
-* **FreeSWITCH/Asterisk integration is file-based** (`CDR CSV`), not ESL-live. Queue-wait
-  counts therefore reflect ingested CDRs, as the brief allows.
+* **Payroll runs are synchronous and transactional.** No external job queue is required.
 * **One SuperAdmin login is seeded**; demo employees have no accounts. Add users via
   `POST /api/admin/users` to exercise agent/manager scopes.
 * **Frontend is CSR (Leptos/WASM), not SSR/hydration.** It is served as static files behind
-  nginx; server-side rendering was not necessary for an internal wallboard and would add a
-  second server runtime.
-* **Not executed in this environment:** Docker/Compose, a live PostgreSQL, Redis, MinIO, the
-  seed binary, and `scripts/smoke.sh` could not be run in the build sandbox (no Docker daemon
-  or database). Verification performed here: `cargo check --workspace` clean,
-  `cargo check -p hrms-web --target wasm32-unknown-unknown` clean, and `cargo test -p hrms-core`
-  → 24 passed. Images, migrations at runtime and the smoke script should be validated on the
-  target host with `docker compose up -d --build && ./scripts/smoke.sh`.
+  nginx; server-side rendering was not necessary for this internal application and would add
+  a second server runtime.
+* **Not executed in this environment:** Docker Compose and MinIO could not be exercised (no
+  Docker daemon). Verification performed here: `cargo check --workspace`,
+  `cargo check -p hrms-web --target wasm32-unknown-unknown`, `cargo test -p hrms-core` and a
+  live PostgreSQL run of `hrms-seed` + `scripts/smoke.sh`. Build the images and validate the
+  full stack on the target host with `docker compose up -d --build && ./scripts/smoke.sh`.

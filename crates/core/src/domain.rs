@@ -82,34 +82,10 @@ impl Role {
         )
     }
 
-    pub fn can_score_quality(&self) -> bool {
-        matches!(self, Role::SuperAdmin | Role::QaAnalyst | Role::TeamLead)
-    }
-
     pub fn can_deliver_training(&self) -> bool {
         matches!(self, Role::SuperAdmin | Role::HrAdmin | Role::Trainer)
     }
 
-    /// What the KPI dashboard exposes to this role (spec §3 access control).
-    pub fn dashboard_scope(&self) -> DashboardScope {
-        match self {
-            Role::SuperAdmin | Role::Manager | Role::TeamLead => DashboardScope::Full,
-            Role::QaAnalyst => DashboardScope::QualityOnly,
-            Role::Agent => DashboardScope::Personal,
-            // HR / payroll / benefits / recruiting / training see operational
-            // head-count style metrics but not the live wallboard.
-            _ => DashboardScope::Workforce,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DashboardScope {
-    Full,
-    QualityOnly,
-    Personal,
-    Workforce,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -349,31 +325,6 @@ impl PayrollMessageCode {
     }
 }
 
-/// Aux state category drives the wallboard colour.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum AuxCategory {
-    Available,
-    OnCall,
-    Break,
-    Offline,
-}
-
-impl AuxCategory {
-    pub fn colour(&self) -> &'static str {
-        match self {
-            AuxCategory::Available => "green",
-            AuxCategory::OnCall => "yellow",
-            AuxCategory::Break => "red",
-            AuxCategory::Offline => "gray",
-        }
-    }
-
-    pub fn is_paid(&self) -> bool {
-        !matches!(self, AuxCategory::Offline)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -404,8 +355,5 @@ mod tests {
         for role in Role::ALL {
             assert_eq!(Role::from_str_opt(role.as_str()), Some(role));
         }
-        assert_eq!(Role::Agent.dashboard_scope(), DashboardScope::Personal);
-        assert_eq!(Role::QaAnalyst.dashboard_scope(), DashboardScope::QualityOnly);
-        assert_eq!(Role::Manager.dashboard_scope(), DashboardScope::Full);
     }
 }

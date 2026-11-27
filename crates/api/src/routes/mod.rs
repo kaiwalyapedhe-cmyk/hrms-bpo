@@ -11,10 +11,8 @@ pub mod absence;
 pub mod admin;
 pub mod auth;
 pub mod benefits;
-pub mod dashboard;
 pub mod development;
 pub mod payroll;
-pub mod quality;
 pub mod recruiting;
 pub mod selfservice;
 pub mod time;
@@ -25,9 +23,8 @@ pub mod workforce;
     info(
         title = "Sampark HRMS API",
         version = "1.0.0",
-        description = "On-premises HRMS for call centres: PeopleSoft HCM 9.2 module mapping, \
-                       India statutory payroll (EPF/EPS, ESI, TDS, PT, gratuity) and a real-time \
-                       KPI dashboard over WebSocket (/ws/dashboard?token=...)."
+        description = "On-premises HRMS for call centres: PeopleSoft HCM 9.2 module mapping \
+                       and India statutory payroll (EPF/EPS, ESI, TDS, PT, gratuity)."
     ),
     paths(
         auth::auth_login,
@@ -89,16 +86,6 @@ pub mod workforce;
         recruiting::offers_list,
         recruiting::careers_requisitions,
         recruiting::careers_apply,
-        quality::forms_list,
-        quality::scores_list,
-        quality::scores_create,
-        quality::aux_codes_list,
-        quality::aux_status,
-        quality::aux_change,
-        quality::cdr_list,
-        dashboard::dashboard_snapshot,
-        dashboard::dashboard_history,
-        dashboard::dashboard_team,
         selfservice::me_summary,
         selfservice::me_notifications,
         selfservice::manager_overview,
@@ -116,8 +103,6 @@ pub mod workforce;
         (name = "benefits", description = "Benefits Administration"),
         (name = "development", description = "Training/ELM, ePerformance, Profile"),
         (name = "recruiting", description = "Talent Acquisition Manager and Candidate Gateway"),
-        (name = "quality", description = "QA scorecards, aux adherence, CDR"),
-        (name = "dashboard", description = "Real-time KPI dashboard data"),
         (name = "selfservice", description = "Employee and manager self-service"),
         (name = "careers", description = "Public candidate gateway"),
         (name = "admin", description = "Users, audit and runtime diagnostics")
@@ -135,8 +120,6 @@ pub fn api_routes() -> Router<AppState> {
         .merge(benefits::routes())
         .merge(development::routes())
         .merge(recruiting::routes())
-        .merge(quality::routes())
-        .merge(dashboard::routes())
         .merge(selfservice::routes())
         .merge(admin::routes());
     // Everything documented in Swagger and proxied by nginx lives under /api.

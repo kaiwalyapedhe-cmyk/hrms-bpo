@@ -1,5 +1,5 @@
 //! Idempotent demo seed: one SuperAdmin, 20 employees across four states,
-//! attendance/aux/CDR/QA data for today, leave, benefits, training, recruiting
+//! attendance data for today, leave, benefits, training and recruiting
 //! and a fully computed payroll run for last month.
 //!
 //! Usage: `DATABASE_URL=... cargo run -p hrms-seed` (or the `seed` compose
@@ -24,7 +24,6 @@ struct EmployeeSeed {
     first: &'static str,
     last: &'static str,
     gender: &'static str,
-    extension: &'static str,
     title: &'static str,
     department: &'static str,
     location: &'static str,
@@ -36,26 +35,26 @@ struct EmployeeSeed {
 }
 
 const EMPLOYEES: [EmployeeSeed; 20] = [
-    EmployeeSeed { emp_no: "EMP-1001", first: "Ananya", last: "Rao", gender: "female", extension: "1001", title: "OPS_MANAGER", department: "CUSTOPS", location: "BLR", work_state: "KA", annual_ctc: 1_800_000, joined: "2019-04-01", employment_type: "full_time", manager: None },
-    EmployeeSeed { emp_no: "EMP-1002", first: "Rahul", last: "Menon", gender: "male", extension: "1002", title: "TEAM_LEAD", department: "CUSTOPS", location: "BLR", work_state: "KA", annual_ctc: 900_000, joined: "2020-06-15", employment_type: "full_time", manager: Some("EMP-1001") },
-    EmployeeSeed { emp_no: "EMP-1003", first: "Priya", last: "Nair", gender: "female", extension: "1003", title: "TEAM_LEAD", department: "CUSTOPS", location: "BOM", work_state: "MH", annual_ctc: 850_000, joined: "2020-09-01", employment_type: "full_time", manager: Some("EMP-1001") },
-    EmployeeSeed { emp_no: "EMP-1004", first: "Arjun", last: "Sharma", gender: "male", extension: "1004", title: "AGENT", department: "CUSTOPS", location: "BLR", work_state: "KA", annual_ctc: 420_000, joined: "2021-01-11", employment_type: "full_time", manager: Some("EMP-1002") },
-    EmployeeSeed { emp_no: "EMP-1005", first: "Sneha", last: "Iyer", gender: "female", extension: "1005", title: "AGENT", department: "CUSTOPS", location: "BLR", work_state: "KA", annual_ctc: 400_000, joined: "2021-02-08", employment_type: "full_time", manager: Some("EMP-1002") },
-    EmployeeSeed { emp_no: "EMP-1006", first: "Vikram", last: "Patil", gender: "male", extension: "1006", title: "AGENT", department: "CUSTOPS", location: "BOM", work_state: "MH", annual_ctc: 450_000, joined: "2021-03-15", employment_type: "full_time", manager: Some("EMP-1003") },
-    EmployeeSeed { emp_no: "EMP-1007", first: "Meera", last: "Kulkarni", gender: "female", extension: "1007", title: "AGENT", department: "CUSTOPS", location: "BOM", work_state: "MH", annual_ctc: 380_000, joined: "2021-07-01", employment_type: "full_time", manager: Some("EMP-1003") },
-    EmployeeSeed { emp_no: "EMP-1008", first: "Rohit", last: "Banerjee", gender: "male", extension: "1008", title: "AGENT", department: "CUSTOPS", location: "CCU", work_state: "WB", annual_ctc: 360_000, joined: "2021-08-16", employment_type: "full_time", manager: Some("EMP-1003") },
-    EmployeeSeed { emp_no: "EMP-1009", first: "Tanvi", last: "Chatterjee", gender: "female", extension: "1009", title: "AGENT", department: "CUSTOPS", location: "CCU", work_state: "WB", annual_ctc: 355_000, joined: "2021-09-06", employment_type: "full_time", manager: Some("EMP-1003") },
-    EmployeeSeed { emp_no: "EMP-1010", first: "Karthik", last: "Subramanian", gender: "male", extension: "1010", title: "AGENT", department: "CUSTOPS", location: "MAA", work_state: "TN", annual_ctc: 365_000, joined: "2021-10-04", employment_type: "full_time", manager: Some("EMP-1002") },
-    EmployeeSeed { emp_no: "EMP-1011", first: "Divya", last: "Ramesh", gender: "female", extension: "1011", title: "AGENT", department: "CUSTOPS", location: "MAA", work_state: "TN", annual_ctc: 350_000, joined: "2022-01-10", employment_type: "fixed_term", manager: Some("EMP-1002") },
-    EmployeeSeed { emp_no: "EMP-1012", first: "Aditya", last: "Joshi", gender: "male", extension: "1012", title: "AGENT", department: "CUSTOPS", location: "BLR", work_state: "KA", annual_ctc: 480_000, joined: "2022-02-14", employment_type: "full_time", manager: Some("EMP-1002") },
-    EmployeeSeed { emp_no: "EMP-1013", first: "Nisha", last: "Verma", gender: "female", extension: "1013", title: "AGENT", department: "CUSTOPS", location: "BLR", work_state: "KA", annual_ctc: 410_000, joined: "2022-05-09", employment_type: "full_time", manager: Some("EMP-1002") },
-    EmployeeSeed { emp_no: "EMP-1014", first: "Sameer", last: "Khan", gender: "male", extension: "1014", title: "AGENT", department: "CUSTOPS", location: "BOM", work_state: "MH", annual_ctc: 390_000, joined: "2022-06-20", employment_type: "full_time", manager: Some("EMP-1003") },
-    EmployeeSeed { emp_no: "EMP-1015", first: "Pooja", last: "Desai", gender: "female", extension: "1015", title: "AGENT", department: "CUSTOPS", location: "BOM", work_state: "MH", annual_ctc: 375_000, joined: "2022-07-18", employment_type: "full_time", manager: Some("EMP-1003") },
-    EmployeeSeed { emp_no: "EMP-1016", first: "Manish", last: "Gupta", gender: "male", extension: "1016", title: "AGENT", department: "CUSTOPS", location: "CCU", work_state: "WB", annual_ctc: 345_000, joined: "2023-01-09", employment_type: "full_time", manager: Some("EMP-1003") },
-    EmployeeSeed { emp_no: "EMP-1017", first: "Aisha", last: "Siddiqui", gender: "female", extension: "1017", title: "QA_ANALYST", department: "QA", location: "BLR", work_state: "KA", annual_ctc: 620_000, joined: "2021-11-02", employment_type: "full_time", manager: Some("EMP-1001") },
-    EmployeeSeed { emp_no: "EMP-1018", first: "Raghav", last: "Pillai", gender: "male", extension: "1018", title: "TRAINER", department: "LND", location: "BLR", work_state: "KA", annual_ctc: 640_000, joined: "2020-12-07", employment_type: "full_time", manager: Some("EMP-1001") },
-    EmployeeSeed { emp_no: "EMP-1019", first: "Lakshmi", last: "Hegde", gender: "female", extension: "1019", title: "PAYROLL_OFFICER", department: "HR", location: "BLR", work_state: "KA", annual_ctc: 720_000, joined: "2019-11-25", employment_type: "full_time", manager: Some("EMP-1001") },
-    EmployeeSeed { emp_no: "EMP-1020", first: "Nikhil", last: "Bose", gender: "male", extension: "1020", title: "RECRUITER", department: "HR", location: "BLR", work_state: "KA", annual_ctc: 560_000, joined: "2022-03-21", employment_type: "full_time", manager: Some("EMP-1001") },
+    EmployeeSeed { emp_no: "EMP-1001", first: "Ananya", last: "Rao", gender: "female", title: "OPS_MANAGER", department: "CUSTOPS", location: "BLR", work_state: "KA", annual_ctc: 1_800_000, joined: "2019-04-01", employment_type: "full_time", manager: None },
+    EmployeeSeed { emp_no: "EMP-1002", first: "Rahul", last: "Menon", gender: "male", title: "TEAM_LEAD", department: "CUSTOPS", location: "BLR", work_state: "KA", annual_ctc: 900_000, joined: "2020-06-15", employment_type: "full_time", manager: Some("EMP-1001") },
+    EmployeeSeed { emp_no: "EMP-1003", first: "Priya", last: "Nair", gender: "female", title: "TEAM_LEAD", department: "CUSTOPS", location: "BOM", work_state: "MH", annual_ctc: 850_000, joined: "2020-09-01", employment_type: "full_time", manager: Some("EMP-1001") },
+    EmployeeSeed { emp_no: "EMP-1004", first: "Arjun", last: "Sharma", gender: "male", title: "AGENT", department: "CUSTOPS", location: "BLR", work_state: "KA", annual_ctc: 420_000, joined: "2021-01-11", employment_type: "full_time", manager: Some("EMP-1002") },
+    EmployeeSeed { emp_no: "EMP-1005", first: "Sneha", last: "Iyer", gender: "female", title: "AGENT", department: "CUSTOPS", location: "BLR", work_state: "KA", annual_ctc: 400_000, joined: "2021-02-08", employment_type: "full_time", manager: Some("EMP-1002") },
+    EmployeeSeed { emp_no: "EMP-1006", first: "Vikram", last: "Patil", gender: "male", title: "AGENT", department: "CUSTOPS", location: "BOM", work_state: "MH", annual_ctc: 450_000, joined: "2021-03-15", employment_type: "full_time", manager: Some("EMP-1003") },
+    EmployeeSeed { emp_no: "EMP-1007", first: "Meera", last: "Kulkarni", gender: "female", title: "AGENT", department: "CUSTOPS", location: "BOM", work_state: "MH", annual_ctc: 380_000, joined: "2021-07-01", employment_type: "full_time", manager: Some("EMP-1003") },
+    EmployeeSeed { emp_no: "EMP-1008", first: "Rohit", last: "Banerjee", gender: "male", title: "AGENT", department: "CUSTOPS", location: "CCU", work_state: "WB", annual_ctc: 360_000, joined: "2021-08-16", employment_type: "full_time", manager: Some("EMP-1003") },
+    EmployeeSeed { emp_no: "EMP-1009", first: "Tanvi", last: "Chatterjee", gender: "female", title: "AGENT", department: "CUSTOPS", location: "CCU", work_state: "WB", annual_ctc: 355_000, joined: "2021-09-06", employment_type: "full_time", manager: Some("EMP-1003") },
+    EmployeeSeed { emp_no: "EMP-1010", first: "Karthik", last: "Subramanian", gender: "male", title: "AGENT", department: "CUSTOPS", location: "MAA", work_state: "TN", annual_ctc: 365_000, joined: "2021-10-04", employment_type: "full_time", manager: Some("EMP-1002") },
+    EmployeeSeed { emp_no: "EMP-1011", first: "Divya", last: "Ramesh", gender: "female", title: "AGENT", department: "CUSTOPS", location: "MAA", work_state: "TN", annual_ctc: 350_000, joined: "2022-01-10", employment_type: "fixed_term", manager: Some("EMP-1002") },
+    EmployeeSeed { emp_no: "EMP-1012", first: "Aditya", last: "Joshi", gender: "male", title: "AGENT", department: "CUSTOPS", location: "BLR", work_state: "KA", annual_ctc: 480_000, joined: "2022-02-14", employment_type: "full_time", manager: Some("EMP-1002") },
+    EmployeeSeed { emp_no: "EMP-1013", first: "Nisha", last: "Verma", gender: "female", title: "AGENT", department: "CUSTOPS", location: "BLR", work_state: "KA", annual_ctc: 410_000, joined: "2022-05-09", employment_type: "full_time", manager: Some("EMP-1002") },
+    EmployeeSeed { emp_no: "EMP-1014", first: "Sameer", last: "Khan", gender: "male", title: "AGENT", department: "CUSTOPS", location: "BOM", work_state: "MH", annual_ctc: 390_000, joined: "2022-06-20", employment_type: "full_time", manager: Some("EMP-1003") },
+    EmployeeSeed { emp_no: "EMP-1015", first: "Pooja", last: "Desai", gender: "female", title: "AGENT", department: "CUSTOPS", location: "BOM", work_state: "MH", annual_ctc: 375_000, joined: "2022-07-18", employment_type: "full_time", manager: Some("EMP-1003") },
+    EmployeeSeed { emp_no: "EMP-1016", first: "Manish", last: "Gupta", gender: "male", title: "AGENT", department: "CUSTOPS", location: "CCU", work_state: "WB", annual_ctc: 345_000, joined: "2023-01-09", employment_type: "full_time", manager: Some("EMP-1003") },
+    EmployeeSeed { emp_no: "EMP-1017", first: "Aisha", last: "Siddiqui", gender: "female", title: "QA_ANALYST", department: "QA", location: "BLR", work_state: "KA", annual_ctc: 620_000, joined: "2021-11-02", employment_type: "full_time", manager: Some("EMP-1001") },
+    EmployeeSeed { emp_no: "EMP-1018", first: "Raghav", last: "Pillai", gender: "male", title: "TRAINER", department: "LND", location: "BLR", work_state: "KA", annual_ctc: 640_000, joined: "2020-12-07", employment_type: "full_time", manager: Some("EMP-1001") },
+    EmployeeSeed { emp_no: "EMP-1019", first: "Lakshmi", last: "Hegde", gender: "female", title: "PAYROLL_OFFICER", department: "HR", location: "BLR", work_state: "KA", annual_ctc: 720_000, joined: "2019-11-25", employment_type: "full_time", manager: Some("EMP-1001") },
+    EmployeeSeed { emp_no: "EMP-1020", first: "Nikhil", last: "Bose", gender: "male", title: "RECRUITER", department: "HR", location: "BLR", work_state: "KA", annual_ctc: 560_000, joined: "2022-03-21", employment_type: "full_time", manager: Some("EMP-1001") },
 ];
 
 const DEPARTMENTS: [(&str, &str, &str); 5] = [
@@ -197,13 +196,12 @@ async fn main() -> Result<()> {
         let id = employees[seed.emp_no];
         let manager_id = seed.manager.map(|no| employees[no]);
         let joined = NaiveDate::parse_from_str(seed.joined, "%Y-%m-%d")?;
-        let extension = seed.extension.parse::<i64>().ok();
         sqlx::query(
             r#"insert into employees
                (id, emp_no, first_name, last_name, email, phone, date_of_birth, gender, date_of_joining,
                 status, employment_type, position_id, manager_id, department_id, location_id, work_state,
-                pan, uan, esic_ip, pf_exempt, esi_exempt, tax_regime, disability, bank_account, ifsc, extension)
-               values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$11,$12,$13,$14,$15,$16,$17,$18,false,false,'new',false,$19,$20,$21)"#,
+                pan, uan, esic_ip, pf_exempt, esi_exempt, tax_regime, disability, bank_account, ifsc)
+               values ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active',$10,$11,$12,$13,$14,$15,$16,$17,$18,false,false,'new',false,$19,$20)"#,
         )
         .bind(id)
         .bind(seed.emp_no)
@@ -229,7 +227,6 @@ async fn main() -> Result<()> {
         .bind(format!("53{:015}", seed.emp_no[4..].parse::<i64>()?))
         .bind(format!("91{:011}", seed.emp_no[4..].parse::<i64>()?))
         .bind("HDFC0001234")
-        .bind(extension.map(|e| e.to_string()))
         .execute(&pool)
         .await?;
     }
@@ -485,172 +482,6 @@ async fn main() -> Result<()> {
         .execute(&pool)
         .await?;
     }
-
-    // ------------------------------------------------------------------
-    // Aux codes + live agent state
-    // ------------------------------------------------------------------
-    let mut aux_codes = HashMap::new();
-    for (code, name, category, colour) in [
-        ("AVAIL", "Available", "available", "green"),
-        ("ONCALL", "On Call", "on_call", "yellow"),
-        ("BREAK", "Short Break", "break", "red"),
-        ("LUNCH", "Lunch", "break", "red"),
-        ("MEETING", "Team Huddle", "break", "red"),
-        ("TRAINING", "Training", "break", "red"),
-        ("WRAP", "After-call Work", "on_call", "yellow"),
-        ("OFFLINE", "Offline", "offline", "gray"),
-    ] {
-        let id: Uuid = sqlx::query_scalar(
-            "insert into aux_codes (code, name, category, colour) values ($1,$2,$3,$4) returning id",
-        )
-        .bind(code)
-        .bind(name)
-        .bind(category)
-        .bind(colour)
-        .fetch_one(&pool)
-        .await?;
-        aux_codes.insert(code, id);
-    }
-
-    let agents: Vec<&EmployeeSeed> = EMPLOYEES
-        .iter()
-        .filter(|e| e.title == "AGENT")
-        .collect();
-    for (index, seed) in agents.iter().enumerate() {
-        let code = ["AVAIL", "ONCALL", "AVAIL", "BREAK", "AVAIL", "OFFLINE", "AVAIL", "ONCALL"][index % 8];
-        let started = Utc::now() - Duration::minutes(((index % 6) * 7 + 3) as i64);
-        sqlx::query(
-            "insert into agent_aux_state (employee_id, aux_code_id, started_at) values ($1,$2,$3)",
-        )
-        .bind(employees[seed.emp_no])
-        .bind(aux_codes[code])
-        .bind(started)
-        .execute(&pool)
-        .await?;
-    }
-
-    // ------------------------------------------------------------------
-    // CDR (FreeSWITCH-style rows for the last three hours)
-    // ------------------------------------------------------------------
-    let mut cdr_ids: Vec<Uuid> = Vec::new();
-    let queues = ["Sales", "Service", "Retention"];
-    let dispositions = ["Resolved", "Follow-up", "Escalated", "Callback"];
-    for index in 0..72 {
-        let seed = agents[index % agents.len()];
-        let started = Utc::now() - Duration::minutes((index as i64 * 3) % 180 + 2);
-        let abandoned = index % 17 == 0;
-        let wait = 4 + (index * 7) % 38;
-        let talk = if abandoned { 0 } else { 140 + (index * 13) % 260 };
-        let hold = if abandoned { 0 } else { (index * 5) % 34 };
-        let wrap = if abandoned { 0 } else { 12 + (index * 3) % 45 };
-        let uniqueid = format!("demo-{}-{index}", today.format("%Y%m%d"));
-        let id: Uuid = sqlx::query_scalar(
-            r#"insert into cdr_records
-               (uniqueid, call_start, call_answer, call_end, direction, queue, agent_ext, employee_id,
-                disposition, wait_seconds, talk_seconds, hold_seconds, wrap_seconds, abandoned, customer_number, source_file)
-               values ($1,$2,$3,$4,'inbound',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'seed-cdr.csv')
-               returning id"#,
-        )
-        .bind(&uniqueid)
-        .bind(started)
-        .bind(if abandoned { None } else { Some(started + Duration::seconds(wait as i64)) })
-        .bind(Some(
-            started + Duration::seconds((wait + talk + hold + wrap) as i64),
-        ))
-        .bind(queues[index % 3])
-        .bind(seed.extension)
-        .bind(employees[seed.emp_no])
-        .bind(if abandoned {
-            "Abandoned"
-        } else {
-            dispositions[index % 4]
-        })
-        .bind(wait as i32)
-        .bind(talk as i32)
-        .bind(hold as i32)
-        .bind(wrap as i32)
-        .bind(abandoned)
-        .bind(format!("+9199{:08}", index))
-        .fetch_one(&pool)
-        .await?;
-        cdr_ids.push(id);
-    }
-
-    // ------------------------------------------------------------------
-    // QA scorecard
-    // ------------------------------------------------------------------
-    let form_id: Uuid = sqlx::query_scalar(
-        "insert into qa_forms (name, description) values ('Inbound Call Quality v3','Weighted scorecard for inbound voice calls') returning id",
-    )
-    .fetch_one(&pool)
-    .await?;
-    let criteria: [(&str, i32, i32); 5] = [
-        ("Greeting & Compliance", 30, 5),
-        ("Verification", 20, 5),
-        ("Resolution Accuracy", 20, 5),
-        ("Communication", 20, 5),
-        ("Closing", 10, 5),
-    ];
-    for (name, weight, max_score) in criteria {
-        sqlx::query(
-            "insert into qa_criteria (form_id, name, weight, max_score, is_csat) values ($1,$2,$3,$4,$5)",
-        )
-        .bind(form_id)
-        .bind(name)
-        .bind(Decimal::from(weight))
-        .bind(max_score)
-        .bind(name == "Communication")
-        .execute(&pool)
-        .await?;
-    }
-
-    for index in 0..12 {
-        let seed = agents[index % agents.len()];
-        let scores = serde_json::json!({
-            "Greeting & Compliance": 4 + (index % 2),
-            "Verification": 4,
-            "Resolution Accuracy": 3 + (index % 3),
-            "Communication": 4,
-            "Closing": 5,
-        });
-        let weighted = |name: &str, weight: i32| -> i32 {
-            let awarded = scores[name].as_i64().unwrap_or(0) as i32;
-            weight * awarded * 100 / (5 * 100)
-        };
-        let total: i32 = criteria.iter().map(|(name, weight, _)| weighted(name, *weight)).sum();
-        sqlx::query(
-            r#"insert into qa_scores
-               (employee_id, evaluator_id, cdr_id, form_id, scores, total_score, weighted_pct, csat_score, comments, evaluated_at)
-               values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)"#,
-        )
-        .bind(employees[seed.emp_no])
-        .bind(employees["EMP-1017"])
-        .bind(Some(cdr_ids[index]))
-        .bind(form_id)
-        .bind(&scores)
-        .bind(Decimal::from(total / 5))
-        .bind(Decimal::from(total))
-        .bind(Decimal::new(38 + (index % 12) as i64, 1))
-        .bind("Good empathy; confirm the ticket reference before closing.")
-        .bind(Utc::now() - Duration::hours(index as i64 * 2 + 1))
-        .execute(&pool)
-        .await?;
-    }
-
-    // ------------------------------------------------------------------
-    // KPI history for the charts (last 4 hours, every 15 minutes)
-    // ------------------------------------------------------------------
-    sqlx::query(
-        r#"insert into kpi_snapshots
-           (captured_at, clocked_in, scheduled, schedule_adherence, aht_15m, aht_30m, queue_wait,
-            csat_avg, occupancy_pct, shrinkage_pct, calls_offered, calls_answered, abandoned_calls)
-           select now() - (g || ' minutes')::interval,
-                  12 + (g % 3), 17, 86 + (g % 8), 330 + (g % 45), 340 + (g % 30), 3 + (g % 7),
-                  4.1 + (g % 6) * 0.1, 74 + (g % 12), 11 + (g % 5), 110 + g, 104 + g, 8 + (g % 6)
-           from generate_series(0, 240, 15) as g"#,
-    )
-    .execute(&pool)
-    .await?;
 
     // ------------------------------------------------------------------
     // Payroll: fully computed run for last month
@@ -1065,6 +896,5 @@ async fn main() -> Result<()> {
         "  Payroll:  {run_year}-{run_month:02} posted for {} employees (gross {total_gross}, net {total_net}, TDS {total_tds})",
         EMPLOYEES.len()
     );
-    println!("  Extensions 1001-1020 are mapped for CDR ingestion.");
     Ok(())
 }

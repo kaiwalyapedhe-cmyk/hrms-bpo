@@ -1,3 +1,3 @@
-emp_no,first_name,last_name,email,phone,date_of_joining,department_code,position_code,work_state,pan,uan,extension,employment_type,gender
-EMP-2001,Kavya,Raman,kavya.raman@example.com,+919800000101,2024-06-03,CUSTOPS,AGT-01,KA,ABCDE1234F,100200300401,2001,full_time,female
-EMP-2002,Imran,Sheikh,imran.sheikh@example.com,+919800000102,2024-07-15,CUSTOPS,AGT-01,MH,ABCDE1234G,100200300402,2002,fixed_term,male
+emp_no,first_name,last_name,email,phone,date_of_joining,department_code,position_code,work_state,pan,uan,employment_type,gender
+EMP-2001,Kavya,Raman,kavya.raman@example.com,+919800000101,2024-06-03,CUSTOPS,AGT-01,KA,ABCDE1234F,100200300401,full_time,female
+EMP-2002,Imran,Sheikh,imran.sheikh@example.com,+919800000102,2024-07-15,CUSTOPS,AGT-01,MH,ABCDE1234G,100200300402,fixed_term,male

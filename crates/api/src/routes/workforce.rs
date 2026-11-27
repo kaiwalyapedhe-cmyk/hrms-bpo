@@ -231,7 +231,6 @@ pub struct EmployeeRecord {
     pub disability: bool,
     pub bank_account: Option<String>,
     pub ifsc: Option<String>,
-    pub extension: Option<String>,
     pub department_name: Option<String>,
     pub position_title: Option<String>,
     pub manager_name: Option<String>,
@@ -242,7 +241,7 @@ select e.id, e.emp_no, e.first_name, e.last_name, e.email, e.phone, e.gender,
        e.date_of_joining, e.date_of_exit, e.status, e.employment_type,
        e.position_id, e.manager_id, e.department_id, e.location_id, e.work_state,
        e.pan, e.uan, e.esic_ip, e.pf_exempt, e.esi_exempt, e.tax_regime, e.disability,
-       e.bank_account, e.ifsc, e.extension,
+       e.bank_account, e.ifsc,
        d.name as department_name,
        p.title as position_title,
        (m.first_name || ' ' || m.last_name) as manager_name
@@ -338,7 +337,6 @@ pub struct EmployeeInput {
     pub disability: Option<bool>,
     pub bank_account: Option<String>,
     pub ifsc: Option<String>,
-    pub extension: Option<String>,
 }
 
 /// Create a person record.
@@ -362,9 +360,9 @@ pub async fn employees_create(
         r#"insert into employees
            (emp_no, first_name, last_name, email, phone, date_of_birth, gender, date_of_joining,
             employment_type, position_id, manager_id, department_id, location_id, work_state,
-            pan, uan, esic_ip, tax_regime, disability, bank_account, ifsc, extension)
+            pan, uan, esic_ip, tax_regime, disability, bank_account, ifsc)
            values ($1,$2,$3,$4,$5,$6,coalesce($7,'other'),$8,coalesce($9,'full_time'),$10,$11,$12,$13,$14,
-                   $15,$16,$17,coalesce($18,'new'),coalesce($19,false),$20,$21,$22)
+                   $15,$16,$17,coalesce($18,'new'),coalesce($19,false),$20,$21)
            returning id"#,
     )
     .bind(&input.emp_no)
@@ -388,7 +386,6 @@ pub async fn employees_create(
     .bind(input.disability)
     .bind(&input.bank_account)
     .bind(&input.ifsc)
-    .bind(&input.extension)
     .fetch_one(&state.db)
     .await?;
 
@@ -407,7 +404,7 @@ pub async fn employees_create(
         ("Signed offer letter and NDA", "documentation", 0),
         ("PAN, Aadhaar and bank details verified", "documentation", 2),
         ("PF / ESI nomination submitted", "statutory", 7),
-        ("System access and telephony extension provisioned", "it", 1),
+        ("System access and email provisioned", "it", 1),
         ("Privacy and POSH training completed", "training", 14),
         ("Nesting / product training sign-off", "training", 21),
     ] {
@@ -461,7 +458,6 @@ pub struct EmployeeUpdate {
     pub bank_account: Option<String>,
     pub ifsc: Option<String>,
     pub status: Option<String>,
-    pub extension: Option<String>,
 }
 
 /// Update mutable person/job fields. Missing fields are left untouched.
@@ -493,7 +489,6 @@ pub async fn employees_update(
              bank_account = coalesce($16, bank_account),
              ifsc = coalesce($17, ifsc),
              status = coalesce($18, status),
-             extension = coalesce($19, extension),
              updated_at = now()
            where id = $1"#,
     )
@@ -515,7 +510,6 @@ pub async fn employees_update(
     .bind(&input.bank_account)
     .bind(&input.ifsc)
     .bind(&input.status)
-    .bind(&input.extension)
     .execute(&state.db)
     .await?
     .rows_affected();
@@ -581,7 +575,6 @@ pub struct TeamMember {
     pub email: String,
     pub status: String,
     pub work_state: String,
-    pub extension: Option<String>,
 }
 
 /// Direct reports of the signed-in manager / team lead.
@@ -592,7 +585,7 @@ pub async fn team_members(
 ) -> ApiResult<Json<Vec<TeamMember>>> {
     let manager_id = user.session.employee_id;
     let rows = sqlx::query_as::<_, TeamMember>(
-        r#"select id, emp_no, (first_name || ' ' || last_name) as name, email, status, work_state, extension
+        r#"select id, emp_no, (first_name || ' ' || last_name) as name, email, status, work_state
            from employees
            where ($1::uuid is null or manager_id = $1) and status <> 'separated'
            order by emp_no"#,
@@ -924,9 +917,9 @@ pub async fn employees_import(
             let result = sqlx::query(
                 r#"insert into employees
                    (emp_no, first_name, last_name, email, phone, date_of_joining, department_id,
-                    position_id, work_state, pan, uan, extension, employment_type, gender)
-                   values ($1,$2,$3,$4,$5,$6,$7,$8,upper(coalesce($9,'KA')),$10,$11,$12,
-                           coalesce($13,'full_time'), coalesce($14,'other'))
+                    position_id, work_state, pan, uan, employment_type, gender)
+                   values ($1,$2,$3,$4,$5,$6,$7,$8,upper(coalesce($9,'KA')),$10,$11,
+                           coalesce($12,'full_time'), coalesce($13,'other'))
                    on conflict (emp_no) do nothing"#,
             )
             .bind(&emp_no)
@@ -940,7 +933,6 @@ pub async fn employees_import(
             .bind(get("work_state"))
             .bind(get("pan"))
             .bind(get("uan"))
-            .bind(get("extension"))
             .bind(get("employment_type"))
             .bind(get("gender"))
             .execute(&state.db)

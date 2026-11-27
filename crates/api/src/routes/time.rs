@@ -12,7 +12,6 @@ use uuid::Uuid;
 
 use crate::auth::{AnyRole, AuthUser, Supervisor};
 use crate::error::{ApiError, ApiResult};
-use crate::realtime::AgentStatus;
 use crate::state::AppState;
 
 pub fn routes() -> Router<AppState> {
@@ -92,7 +91,7 @@ pub struct PunchInput {
 }
 
 /// Record a punch. Punching in clears the closed aux state; punching out sets
-/// the agent offline. The dashboard is refreshed right after the write.
+/// the agent offline.
 #[utoipa::path(post, path = "/api/punches", tag = "time", request_body = PunchInput,
     responses((status = 200, body = Punch), (status = 400, description = "invalid punch type")))]
 pub async fn punches_create(
@@ -133,65 +132,7 @@ pub async fn punches_create(
     .fetch_one(&state.db)
     .await?;
 
-    sync_aux_for_punch(&state, employee_id, &input.punch_type).await;
-    let state_clone = state.clone();
-    tokio::spawn(async move {
-        let _ = crate::metrics::refresh(&state_clone, false).await;
-    });
-
     Ok(Json(row))
-}
-
-async fn sync_aux_for_punch(state: &AppState, employee_id: Uuid, punch_type: &str) {
-    let code = match punch_type {
-        "in" => "AVAILABLE",
-        "break_start" => "BREAK",
-        "break_end" => "AVAILABLE",
-        _ => "OFFLINE",
-    };
-    let aux_code_id: Option<Uuid> =
-        sqlx::query_scalar("select id from aux_codes where code = $1")
-            .bind(code)
-            .fetch_optional(&state.db)
-            .await
-            .unwrap_or(None);
-    let Some(aux_code_id) = aux_code_id else {
-        return;
-    };
-    let _ = sqlx::query("update agent_aux_state set ended_at = now() where employee_id = $1 and ended_at is null")
-        .bind(employee_id)
-        .execute(&state.db)
-        .await;
-    let _ = sqlx::query("insert into agent_aux_state (employee_id, aux_code_id) values ($1,$2)")
-        .bind(employee_id)
-        .bind(aux_code_id)
-        .execute(&state.db)
-        .await;
-
-    let row: Option<(String, String, String, DateTime<Utc>, String)> = sqlx::query_as(
-        r#"select ac.code, ac.category, ac.colour, s.started_at, (e.first_name || ' ' || e.last_name)
-           from agent_aux_state s
-           join aux_codes ac on ac.id = s.aux_code_id
-           join employees e on e.id = s.employee_id
-           where s.employee_id = $1 and s.ended_at is null
-           order by s.started_at desc limit 1"#,
-    )
-    .bind(employee_id)
-    .fetch_optional(&state.db)
-    .await
-    .unwrap_or(None);
-
-    if let Some((code, category, colour, since, name)) = row {
-        state.hub.publish_agent(AgentStatus {
-            employee_id,
-            employee_name: name,
-            aux_code: code,
-            category: category.clone(),
-            colour,
-            on_call: category == "on_call",
-            since,
-        });
-    }
 }
 
 // ---------------------------------------------------------------------------

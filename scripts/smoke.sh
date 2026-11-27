@@ -51,11 +51,8 @@ if [[ -n "${TOKEN:-}" ]]; then
   echo "Authenticated reads"
   auth_check "GET /api/auth/me" "/api/auth/me"
   auth_check "GET /api/employees" "/api/employees"
-  auth_check "GET /api/dashboard/snapshot" "/api/dashboard/snapshot"
-  auth_check "GET /api/dashboard/history" "/api/dashboard/history?hours=4"
   auth_check "GET /api/payroll/payslips" "/api/payroll/payslips"
   auth_check "GET /api/leave/balances" "/api/leave/balances"
-  auth_check "GET /api/quality/scores" "/api/quality/scores"
   auth_check "GET /api/admin/system" "/api/admin/system"
 
   echo
@@ -64,14 +61,5 @@ if [[ -n "${TOKEN:-}" ]]; then
   if [[ "$code" == "401" ]]; then ok "GET /api/employees without token → 401"; else bad "anonymous access blocked" "got $code"; fi
 fi
 
-echo
-echo "Realtime dashboard"
-WS_CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 \
-  -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
-  -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
-  "$BASE/ws/dashboard?token=${TOKEN:-invalid}")
-if [[ "$WS_CODE" == "101" ]]; then ok "WS /ws/dashboard upgraded"; else bad "WS /ws/dashboard" "HTTP $WS_CODE"; fi
-
-echo
 printf 'Result: %d passed, %d failed\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

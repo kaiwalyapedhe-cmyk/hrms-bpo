@@ -11,7 +11,7 @@ use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use chrono::{Duration, Utc};
-use hrms_core::{DashboardScope, Role};
+use hrms_core::Role;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -45,16 +45,6 @@ pub struct Session {
     pub email: String,
     pub name: String,
     pub role: Role,
-}
-
-impl Session {
-    pub fn scope(&self) -> DashboardScope {
-        self.role.dashboard_scope()
-    }
-
-    pub fn is(&self, role: Role) -> bool {
-        self.role == role
-    }
 }
 
 impl AuthConfig {
@@ -177,22 +167,6 @@ pub struct AuthUser<R: RoleGate = AnyRole> {
     _gate: PhantomData<R>,
 }
 
-impl<R: RoleGate> AuthUser<R> {
-    pub fn employee_id(&self) -> Result<Uuid, ApiError> {
-        self.session
-            .employee_id
-            .ok_or_else(|| ApiError::bad("this account is not linked to an employee record"))
-    }
-
-    pub fn require(&self, allowed: bool, what: &str) -> Result<(), ApiError> {
-        if allowed {
-            Ok(())
-        } else {
-            Err(ApiError::forbidden(format!("{} cannot {what}", self.session.role.as_str())))
-        }
-    }
-}
-
 impl std::ops::Deref for AuthUser<AnyRole> {
     type Target = Session;
     fn deref(&self) -> &Session {
@@ -241,13 +215,6 @@ gates! {
     BenefitsOffice => "benefits administration" : SuperAdmin | HrAdmin | BenefitsAdmin,
     RecruitingOffice => "recruiting" : SuperAdmin | HrAdmin | Recruiter,
     Supervisor => "manager or team lead" : SuperAdmin | Manager | TeamLead,
-    QualityOffice => "quality assurance" : SuperAdmin | QaAnalyst | TeamLead,
     TrainingOffice => "training administration" : SuperAdmin | HrAdmin | Trainer,
     AdminOnly => "super administrator" : SuperAdmin,
-}
-
-/// Try to resolve a session from a bare token (used by the WebSocket handler,
-/// where the browser cannot set an Authorization header).
-pub fn session_from_query_token(state: &AppState, token: &str) -> Result<Session, ApiError> {
-    state.auth.session_from_token(token)
 }

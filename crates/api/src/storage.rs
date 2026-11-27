@@ -1,4 +1,4 @@
-//! MinIO / S3 object storage for payslip PDFs, statutory files and CDR uploads.
+//! MinIO / S3 object storage for payslip PDFs and statutory filings.
 //! The service boots without object storage (S3_ENDPOINT unset) and falls back
 //! to streaming generated files straight to the caller.
 

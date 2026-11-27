@@ -5,7 +5,6 @@ name: hrms
 
 x-api-environment: &api-environment
   DATABASE_URL: postgres://hrms:${POSTGRES_PASSWORD:-hrms_dev_password}@postgres:5432/hrms
-  REDIS_URL: redis://redis:6379
   JWT_SECRET: ${JWT_SECRET:-dev-only-jwt-secret-change-before-production-32chars}
   JWT_TTL_MINUTES: ${JWT_TTL_MINUTES:-480}
   BIND_ADDR: 0.0.0.0:8080
@@ -35,18 +34,6 @@ services:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U hrms -d hrms"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -96,8 +83,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       minio:
         condition: service_healthy
       minio-init:
@@ -136,5 +121,4 @@ services:
 
 volumes:
   pgdata:
-  redisdata:
   miniodata:

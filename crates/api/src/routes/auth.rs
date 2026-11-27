@@ -35,7 +35,6 @@ pub struct UserProfile {
     pub role: String,
     pub employee_id: Option<Uuid>,
     pub employee_no: Option<String>,
-    pub dashboard_scope: String,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -118,7 +117,6 @@ pub async fn auth_login(
             role: row.role,
             employee_id: row.employee_id,
             employee_no: row.employee_no,
-            dashboard_scope: format!("{:?}", role.dashboard_scope()).to_lowercase(),
         },
     }))
 }
@@ -143,7 +141,6 @@ pub async fn auth_me(
         role: user.session.role.as_str().to_string(),
         employee_id: user.session.employee_id,
         employee_no,
-        dashboard_scope: format!("{:?}", user.session.role.dashboard_scope()).to_lowercase(),
     }))
 }
 
@@ -193,7 +190,6 @@ pub async fn auth_change_password(
 #[derive(Debug, Serialize, ToSchema)]
 pub struct RoleInfo {
     pub role: String,
-    pub dashboard_scope: String,
 }
 
 /// Roles understood by the RBAC layer.
@@ -204,7 +200,6 @@ pub async fn auth_roles() -> Json<Vec<RoleInfo>> {
             .iter()
             .map(|role| RoleInfo {
                 role: role.as_str().to_string(),
-                dashboard_scope: format!("{:?}", role.dashboard_scope()).to_lowercase(),
             })
             .collect(),
     )

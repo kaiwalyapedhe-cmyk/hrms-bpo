@@ -13,8 +13,7 @@ pub mod money;
 
 pub use config::{ConfigError, IndiaPayrollConfig};
 pub use domain::{
-    AuxCategory, DashboardScope, EmploymentType, Gender, PayPeriod, PayrollMessageCode, Role,
-    SeparationReason, TaxRegime,
+    EmploymentType, Gender, PayPeriod, PayrollMessageCode, Role, SeparationReason, TaxRegime,
 };
 pub use india::engine::{
     PayLine, PayLineInput, PayrollEngine, PayrollError, PayrollInput, PayrollMessage,

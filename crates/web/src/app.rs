@@ -1,28 +1,9 @@
-//! SPA shell, real-time dashboard and self-service screens.
-
-use std::collections::HashMap;
+//! SPA shell and self-service screens.
 
 use leptos::*;
 use serde_json::Value;
 
 use crate::api::{self, SessionUser};
-use crate::ws::{self, ConnState};
-
-#[derive(Debug, Clone, PartialEq)]
-struct AgentRow {
-    employee_id: String,
-    name: String,
-    aux_code: String,
-    category: String,
-    colour: String,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-struct HistPoint {
-    at: String,
-    aht: f64,
-    wait: f64,
-}
 
 fn text(value: &Value, key: &str) -> String {
     match value.get(key) {
@@ -42,11 +23,6 @@ fn fmt(value: f64) -> String {
     } else {
         format!("{value:.1}")
     }
-}
-
-fn short_time(raw: &str) -> String {
-    // 2026-11-26T09:15:00Z → 09:15
-    raw.get(11..16).unwrap_or(raw).to_string()
 }
 
 #[component]
@@ -111,47 +87,7 @@ fn Login(set_session: WriteSignal<Option<SessionUser>>) -> impl IntoView {
 
 #[component]
 fn Shell(user: SessionUser, set_session: WriteSignal<Option<SessionUser>>) -> impl IntoView {
-    let (tab, set_tab) = create_signal("dashboard".to_string());
-    let metrics = create_rw_signal(HashMap::<String, f64>::new());
-    let agents = create_rw_signal(Vec::<AgentRow>::new());
-    let history = create_rw_signal(Vec::<HistPoint>::new());
-    let conn = create_rw_signal(ConnState::Connecting);
-
-    // Initial snapshot + history, then a 60s history refresh.
-    spawn_local(async move {
-        load_snapshot(metrics, agents, history).await;
-        loop {
-            gloo_timers::future::TimeoutFuture::new(60_000).await;
-            if let Ok(value) = api::get_json("/dashboard/history?hours=4").await {
-                history.set(parse_history(&value));
-            }
-        }
-    });
-
-    if let Some(token) = api::token() {
-        let on_frame = Callback::new(move |frame: Value| {
-            match frame.get("type").and_then(|t| t.as_str()) {
-                Some("snapshot") => {
-                    merge_metrics(metrics, &frame);
-                    agents.set(parse_agents(&frame));
-                }
-                Some("metric_delta") | Some("personal_metrics") => merge_metrics(metrics, &frame),
-                Some("agent_status") => {
-                    if let Some(agent) = frame.get("agent") {
-                        let row = parse_agent(agent);
-                        agents.update(|list| {
-                            match list.iter_mut().find(|a| a.employee_id == row.employee_id) {
-                                Some(existing) => *existing = row,
-                                None => list.push(row),
-                            }
-                        });
-                    }
-                }
-                _ => {}
-            }
-        });
-        ws::connect(token, on_frame, conn);
-    }
+    let (tab, set_tab) = create_signal("me".to_string());
 
     let role = user.role.clone();
     let can_see = {
@@ -159,12 +95,10 @@ fn Shell(user: SessionUser, set_session: WriteSignal<Option<SessionUser>>) -> im
         move |required: &str| match required {
             "admin" => role == "super_admin",
             "supervisor" => matches!(role.as_str(), "super_admin" | "manager" | "team_lead"),
-            "quality" => matches!(role.as_str(), "super_admin" | "qa_analyst" | "team_lead"),
             _ => true,
         }
     };
     let nav = {
-        let can_see = can_see.clone();
         move |label: &'static str, key: &'static str, set_tab: WriteSignal<String>| {
             let key_owned = key.to_string();
             view! {
@@ -185,13 +119,10 @@ fn Shell(user: SessionUser, set_session: WriteSignal<Option<SessionUser>>) -> im
         <header class="topbar">
             <div class="brand">"Sampark HRMS"</div>
             <nav>
-                {nav("Dashboard", "dashboard", set_tab)}
                 {nav("My workspace", "me", set_tab)}
                 {nav("Time", "time", set_tab)}
                 {nav("Leave", "leave", set_tab)}
                 {nav("Payslips", "pay", set_tab)}
-                {nav("Quality", "qa", set_tab)}
-                {can_see("supervisor").then(|| nav("Team", "team", set_tab))}
                 {can_see("admin").then(|| nav("Admin", "admin", set_tab))}
             </nav>
             <div class="who">
@@ -203,200 +134,14 @@ fn Shell(user: SessionUser, set_session: WriteSignal<Option<SessionUser>>) -> im
 
         <main>
             {move || match tab.get().as_str() {
-                "me" => view! { <MyWorkspace/> }.into_view(),
                 "time" => view! { <TimeEntry/> }.into_view(),
                 "leave" => view! { <Leave/> }.into_view(),
                 "pay" => view! { <Payslips/> }.into_view(),
-                "qa" => view! { <Quality/> }.into_view(),
-                "team" => view! { <TeamBoard/> }.into_view(),
                 "admin" => view! { <Admin/> }.into_view(),
-                _ => view! { <Dashboard metrics=metrics agents=agents history=history conn=conn/> }.into_view(),
+                _ => view! { <MyWorkspace/> }.into_view(),
             }}
         </main>
     }
-}
-
-async fn load_snapshot(
-    metrics: RwSignal<HashMap<String, f64>>,
-    agents: RwSignal<Vec<AgentRow>>,
-    history: RwSignal<Vec<HistPoint>>,
-) {
-    if let Ok(snapshot) = api::get_json("/dashboard/snapshot").await {
-        merge_metrics(metrics, &snapshot);
-        agents.set(parse_agents(&snapshot));
-    }
-    if let Ok(value) = api::get_json("/dashboard/history?hours=4").await {
-        history.set(parse_history(&value));
-    }
-}
-
-fn merge_metrics(metrics: RwSignal<HashMap<String, f64>>, frame: &Value) {
-    if let Some(object) = frame.get("metrics").and_then(|m| m.as_object()) {
-        metrics.update(|map| {
-            for (key, value) in object {
-                if let Some(value) = value.as_f64() {
-                    map.insert(key.clone(), value);
-                }
-            }
-        });
-    }
-}
-
-fn parse_agent(value: &Value) -> AgentRow {
-    AgentRow {
-        employee_id: text(value, "employee_id"),
-        name: text(value, "employee_name"),
-        aux_code: text(value, "aux_code"),
-        category: text(value, "category"),
-        colour: text(value, "colour"),
-    }
-}
-
-fn parse_agents(frame: &Value) -> Vec<AgentRow> {
-    frame
-        .get("agents")
-        .and_then(|a| a.as_array())
-        .map(|rows| rows.iter().map(parse_agent).collect())
-        .unwrap_or_default()
-}
-
-fn parse_history(value: &Value) -> Vec<HistPoint> {
-    value
-        .as_array()
-        .map(|rows| {
-            rows.iter()
-                .map(|row| HistPoint {
-                    at: short_time(&text(row, "captured_at")),
-                    aht: number(row, "aht_15m"),
-                    wait: number(row, "queue_wait"),
-                })
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-#[component]
-fn Dashboard(
-    metrics: RwSignal<HashMap<String, f64>>,
-    agents: RwSignal<Vec<AgentRow>>,
-    history: RwSignal<Vec<HistPoint>>,
-    conn: RwSignal<ConnState>,
-) -> impl IntoView {
-    let metric = move |key: &'static str| {
-        Signal::derive(move || *metrics.get().get(key).unwrap_or(&0.0))
-    };
-    let aht_series = Signal::derive(move || history.get().iter().map(|p| p.aht).collect::<Vec<_>>());
-    let wait_series = Signal::derive(move || history.get().iter().map(|p| p.wait).collect::<Vec<_>>());
-    let last_aht = move || fmt(history.get().last().map(|p| p.aht).unwrap_or(0.0));
-
-    view! {
-        <section class="page-head">
-            <h1>"Real-time operations dashboard"</h1>
-            <span class=move || format!("pill {}", match conn.get() {
-                ConnState::Live => "live",
-                ConnState::Connecting => "warn",
-                ConnState::Retrying => "down",
-            })>
-                <span class="dot"></span>{move || conn.get().label()}
-            </span>
-        </section>
-
-        <section class="kpis">
-            <Kpi title="Agents clocked in" value=metric("clocked_in") suffix="" hint="Punch / clock-out events"/>
-            <Kpi title="Schedule adherence" value=metric("schedule_adherence") suffix="%" hint="Aux status changes"/>
-            <Kpi title="Rolling AHT (15m)" value=metric("aht_15m") suffix="s" hint="New CDR records"/>
-            <Kpi title="Queue wait" value=metric("queue_wait") suffix="s" hint="Call events"/>
-            <Kpi title="CSAT today" value=metric("csat_avg") suffix="/5" hint="QA submissions"/>
-            <Kpi title="Occupancy" value=metric("occupancy_pct") suffix="%" hint="60s tick"/>
-        </section>
-
-        <section class="charts">
-            <div class="card">
-                <div class="card-head"><h2>"Average handle time"</h2><span class="muted">{last_aht}"s now"</span></div>
-                <Sparkline values=aht_series stroke="#38bdf8"/>
-            </div>
-            <div class="card">
-                <div class="card-head"><h2>"Queue wait"</h2><span class="muted">"last 4 hours"</span></div>
-                <Sparkline values=wait_series stroke="#fbbf24"/>
-            </div>
-        </section>
-
-        <section class="card">
-            <div class="card-head">
-                <h2>"Agent status"</h2>
-                <span class="muted">{move || format!("{} agents", agents.get().len())}</span>
-            </div>
-            <div class="agent-grid">
-                {move || agents.get().into_iter().map(|agent| {
-                    let colour = match agent.colour.as_str() {
-                        "green" => "var(--ok)",
-                        "yellow" => "var(--warn)",
-                        "red" => "var(--bad)",
-                        _ => "var(--muted)",
-                    };
-                    view! {
-                        <div class="agent" title=agent.category.clone()>
-                            <span class="agent-dot" style=format!("background:{colour}")></span>
-                            <div>
-                                <div class="agent-name">{agent.name}</div>
-                                <div class="muted small">{agent.aux_code}</div>
-                            </div>
-                        </div>
-                    }
-                }).collect_view()}
-            </div>
-        </section>
-    }
-}
-
-#[component]
-fn Kpi(
-    title: &'static str,
-    value: Signal<f64>,
-    suffix: &'static str,
-    hint: &'static str,
-) -> impl IntoView {
-    view! {
-        <div class="kpi">
-            <div class="kpi-title">{title}</div>
-            <div class="kpi-value">{move || format!("{}{}", fmt(value.get()), suffix)}</div>
-            <div class="kpi-hint">{hint}</div>
-        </div>
-    }
-}
-
-#[component]
-fn Sparkline(
-    values: Signal<Vec<f64>>,
-    #[prop(default = "#38bdf8")] stroke: &'static str,
-) -> impl IntoView {
-    view! {
-        <svg class="spark" viewBox="0 0 600 170" preserveAspectRatio="none">
-            <line x1="10" y1="150" x2="590" y2="150" stroke="rgba(148,163,184,.25)" stroke-width="1"/>
-            <line x1="10" y1="90" x2="590" y2="90" stroke="rgba(148,163,184,.12)" stroke-width="1"/>
-            <polyline fill="none" stroke=stroke stroke-width="2.5"
-                points=move || path_points(&values.get()) />
-        </svg>
-    }
-}
-
-fn path_points(values: &[f64]) -> String {
-    if values.is_empty() {
-        return String::new();
-    }
-    let max = values.iter().cloned().fold(f64::MIN, f64::max);
-    let min = values.iter().cloned().fold(f64::MAX, f64::min);
-    let span = if (max - min).abs() < f64::EPSILON { 1.0 } else { max - min };
-    values
-        .iter()
-        .enumerate()
-        .map(|(index, value)| {
-            let x = 10.0 + 580.0 * index as f64 / (values.len().max(2) - 1) as f64;
-            let y = 150.0 - ((value - min) / span) * 130.0;
-            format!("{x:.1},{y:.1}")
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
 }
 
 #[component]
@@ -437,7 +182,7 @@ fn MyWorkspace() -> impl IntoView {
                         <p>{text(&shift, "shift")}</p>
                         <p class="muted">{text(&shift, "start_time")}" – "{text(&shift, "end_time")}</p>
                         <h2 class="mt">"Latest payslip"</h2>
-                        <p class="kpi-value">"₹"{fmt(number(&payslip, "net_pay"))}</p>
+                        <p class="amount">"₹"{fmt(number(&payslip, "net_pay"))}</p>
                         <p class="muted small">{format!("{} / {}", number(&payslip, "period_month"), number(&payslip, "period_year"))}" · net pay"</p>
                     </div>
                 </section>
@@ -654,78 +399,6 @@ fn Payslips() -> impl IntoView {
 }
 
 #[component]
-fn Quality() -> impl IntoView {
-    let rows = create_rw_signal(Vec::<Value>::new());
-    spawn_local(async move {
-        if let Ok(value) = api::get_json("/quality/scores").await {
-            rows.set(value.as_array().cloned().unwrap_or_default());
-        }
-    });
-    view! {
-        <section class="page-head"><h1>"Quality scorecard"</h1></section>
-        <section class="card">
-            <table>
-                <thead><tr><th>"Agent"</th><th>"Evaluator"</th><th>"Form"</th><th>"Score"</th><th>"CSAT"</th><th>"When"</th></tr></thead>
-                <tbody>
-                    {move || rows.get().into_iter().map(|row| view! {
-                        <tr>
-                            <td>{text(&row, "employee_name")}</td>
-                            <td>{text(&row, "evaluator_name")}</td>
-                            <td>{text(&row, "form_name")}</td>
-                            <td><strong>{fmt(number(&row, "weighted_pct"))}"%"</strong></td>
-                            <td>{fmt(number(&row, "csat_score"))}</td>
-                            <td>{text(&row, "evaluated_at")}</td>
-                        </tr>
-                    }).collect_view()}
-                </tbody>
-            </table>
-        </section>
-    }
-}
-
-#[component]
-fn TeamBoard() -> impl IntoView {
-    let rows = create_rw_signal(Vec::<Value>::new());
-    let overview = create_rw_signal(Value::Null);
-    spawn_local(async move {
-        if let Ok(value) = api::get_json("/dashboard/team").await {
-            rows.set(value.as_array().cloned().unwrap_or_default());
-        }
-        if let Ok(value) = api::get_json("/manager/overview").await {
-            overview.set(value);
-        }
-    });
-    view! {
-        <section class="page-head"><h1>"Team performance"</h1></section>
-        <section class="kpis">
-            <div class="kpi"><div class="kpi-title">"Team size"</div><div class="kpi-value">{move || fmt(number(&overview.get(), "team_size"))}</div></div>
-            <div class="kpi"><div class="kpi-title">"Present today"</div><div class="kpi-value">{move || fmt(number(&overview.get(), "present_today"))}</div></div>
-            <div class="kpi"><div class="kpi-title">"Pending timesheets"</div><div class="kpi-value">{move || fmt(number(&overview.get(), "pending_timesheets"))}</div></div>
-            <div class="kpi"><div class="kpi-title">"Pending leave"</div><div class="kpi-value">{move || fmt(number(&overview.get(), "pending_leave"))}</div></div>
-            <div class="kpi"><div class="kpi-title">"Calls today"</div><div class="kpi-value">{move || fmt(number(&overview.get(), "calls_today"))}</div></div>
-        </section>
-        <section class="card">
-            <table>
-                <thead><tr><th>"Agent"</th><th>"Ext"</th><th>"Aux"</th><th>"Calls"</th><th>"Avg handle"</th><th>"QA"</th><th>"CSAT"</th></tr></thead>
-                <tbody>
-                    {move || rows.get().into_iter().map(|row| view! {
-                        <tr>
-                            <td>{text(&row, "employee_name")}</td>
-                            <td>{text(&row, "extension")}</td>
-                            <td>{text(&row, "aux_code")}</td>
-                            <td>{fmt(number(&row, "calls_today"))}</td>
-                            <td>{fmt(number(&row, "avg_handle_seconds"))}"s"</td>
-                            <td>{fmt(number(&row, "qa_score"))}</td>
-                            <td>{fmt(number(&row, "csat"))}</td>
-                        </tr>
-                    }).collect_view()}
-                </tbody>
-            </table>
-        </section>
-    }
-}
-
-#[component]
 fn Admin() -> impl IntoView {
     let system = create_rw_signal(Value::Null);
     let users = create_rw_signal(Vec::<Value>::new());
@@ -750,10 +423,8 @@ fn Admin() -> impl IntoView {
                     <dt>"Version"</dt><dd>{move || text(&system.get(), "version")}</dd>
                     <dt>"EPF ceiling"</dt><dd>"₹"{move || fmt(number(&system.get(), "epf_ceiling"))}</dd>
                     <dt>"ESI ceiling"</dt><dd>"₹"{move || fmt(number(&system.get(), "esi_ceiling"))}</dd>
-                    <dt>"Redis queue"</dt><dd>{move || if system.get().get("redis_queue_enabled").and_then(|v| v.as_bool()).unwrap_or(false) { "enabled" } else { "disabled" } }</dd>
                     <dt>"Object storage"</dt><dd>{move || text(&system.get(), "object_bucket")}</dd>
                     <dt>"Employees"</dt><dd>{move || fmt(number(&system.get(), "employees"))}</dd>
-                    <dt>"Dashboard clients"</dt><dd>{move || fmt(number(&system.get(), "dashboard_subscribers"))}</dd>
                 </dl>
             </div>
             <div class="card">

@@ -1,5 +1,5 @@
 //! Platform administration — user accounts, RBAC, audit trail and runtime
-//! diagnostics (queue depth, object storage, live dashboard subscribers).
+//! diagnostics (object storage, payroll year and record counts).
 
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, patch, post};
@@ -238,12 +238,8 @@ pub struct SystemStatus {
     pub epf_ceiling: f64,
     pub esi_ceiling: f64,
     pub epf_ceiling_hike_enabled: bool,
-    pub redis_queue_enabled: bool,
-    pub redis_url_configured: bool,
-    pub queue_depth: i64,
     pub object_storage_enabled: bool,
     pub object_bucket: String,
-    pub dashboard_subscribers: usize,
     pub employees: i64,
     pub users: i64,
     pub database_ok: bool,
@@ -268,12 +264,8 @@ pub async fn system_status(
         epf_ceiling: state.config.epf.wage_ceiling,
         esi_ceiling: state.config.esi.wage_ceiling,
         epf_ceiling_hike_enabled: state.config.epf.ceiling_hike.enabled,
-        redis_queue_enabled: state.queue.enabled(),
-        redis_url_configured: !state.queue.url().is_empty(),
-        queue_depth: state.queue.depth().await,
         object_storage_enabled: state.storage.enabled(),
         object_bucket: state.storage.bucket().to_string(),
-        dashboard_subscribers: state.hub.receiver_count(),
         employees,
         users,
         database_ok: true,

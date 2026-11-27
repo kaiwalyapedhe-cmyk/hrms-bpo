@@ -17,7 +17,6 @@ pub struct SessionUser {
     pub role: String,
     pub employee_id: Option<String>,
     pub employee_no: Option<String>,
-    pub dashboard_scope: String,
 }
 
 impl SessionUser {
@@ -26,9 +25,6 @@ impl SessionUser {
     }
     pub fn is_supervisor(&self) -> bool {
         matches!(self.role.as_str(), "super_admin" | "manager" | "team_lead")
-    }
-    pub fn is_quality(&self) -> bool {
-        matches!(self.role.as_str(), "super_admin" | "qa_analyst" | "team_lead")
     }
 }
 
@@ -45,24 +41,6 @@ pub fn base() -> String {
         }
     }
     "/api".to_string()
-}
-
-/// Origin used to build the WebSocket URL (`http(s)://host` → `ws(s)://host`).
-pub fn origin() -> String {
-    if base().starts_with("http") {
-        return base()
-            .trim_end_matches("/api")
-            .trim_end_matches('/')
-            .to_string();
-    }
-    let window = web_sys::window().expect("window");
-    let location = window.location();
-    let protocol = if location.protocol().unwrap_or_default() == "https:" {
-        "https"
-    } else {
-        "http"
-    };
-    format!("{}://{}", protocol, location.host().unwrap_or_default())
 }
 
 pub fn token() -> Option<String> {
