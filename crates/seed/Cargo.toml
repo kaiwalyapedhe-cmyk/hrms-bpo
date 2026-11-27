@@ -1,0 +1,25 @@
+[package]
+name = "hrms-seed"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "hrms-seed"
+path = "src/main.rs"
+
+[dependencies]
+hrms-core.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+uuid.workspace = true
+argon2.workspace = true
+rand.workspace = true
+dotenvy.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rust_decimal.workspace = true

@@ -1,0 +1,245 @@
+# =====================================================================
+#  India statutory payroll configuration  —  hrms-onprem
+#  Every rate / ceiling / slab used by the payroll engine lives here.
+#  The API reads this file at boot (HRMS_PAYROLL_CONFIG, default
+#  ./config/india_payroll.toml).  Editing it and restarting the api
+#  container changes statutory behaviour without a rebuild.
+#
+#  Source years (as published / as specified for this build):
+#    * EPF & MP Act 1952 + EPS 1995 .......... rates as amended 2014
+#      - employee 12% of PF wages, employer 12% split 8.33% EPS / 3.67% EPF
+#      - statutory wage ceiling Rs.15,000/month (since 01-Sep-2014)
+#      - ceiling hike to Rs.25,000 announced effective 17-Sep-2026:
+#        kept OFF by default (epf.ceiling_hike.enabled = false) because the
+#        EPFO circular is not yet notified for all establishments. Flip the
+#        flag + restart to adopt it; the effective date is honoured.
+#      - EDLI 0.5% + EPF admin charges 0.5% (employer only, A/c 2 & 21)
+#    * ESI Act 1948 ........................... rates w.e.f. 01-Jul-2019
+#      - employee 0.75%, employer 3.25%, ceiling Rs.21,000
+#        (Rs.25,000 for persons with disability), fractions rounded UP
+#    * Income-tax Act, s.115BAC (new regime) .. Finance Act 2025 schedule
+#      - slabs 0-4L nil / 4-8L 5% / 8-12L 10% / 12-16L 15% / 16-20L 20%
+#        / 20-24L 25% / above 24L 30%
+#      - standard deduction Rs.75,000, s.87A rebate up to Rs.60,000 for
+#        taxable income <= Rs.12,00,000 (=> nil tax up to Rs.12.75L salary)
+#      - old regime retained for opt-out employees (std ded Rs.50,000,
+#        s.87A Rs.12,500 up to Rs.5L)
+#    * Professional tax ....................... State statutes, Art.276 cap
+#      - levied on the employee's *place of work*, not the employer's
+#        registered office; Rs.2,500 per person per year constitutional cap
+#      - Karnataka, Maharashtra, West Bengal: monthly with a February
+#        surcharge that completes the annual Rs.2,500
+#      - Tamil Nadu: half-yearly statute; the engine splits the half-yearly
+#        amount over six months and trues-up the remainder in the last month
+#    * Payment of Gratuity Act 1972 .......... 15/26 formula, Rs.20,00,000
+#      cap, 5 years continuous service (waived on death/disablement),
+#      1 year for fixed-term employees (s.2(e) explanation, 2022 amendment)
+#    * Code on Wages 2019 .................... "wages" >= 50% of total
+#      remuneration; a breach is reported as a payroll message
+# =====================================================================
+
+[meta]
+version = "2026.11"
+# Assessment year this configuration was reviewed for.
+assessment_year = "2026-27"
+financial_year = "2026-27"
+# Income-tax slabs below are the FY 2025-26 (AY 2026-27) schedule as
+# specified for this build; they carry forward until the next Finance Act.
+income_tax_slab_year = "FY 2025-26"
+currency = "INR"
+reviewed_on = "2026-11-26"
+
+[epf]
+employee_rate = 0.12          # 12% of PF wages (basic + DA)
+employer_rate = 0.12          # total employer share
+eps_rate = 0.0833             # 8.33% diverted to pension fund
+wage_ceiling = 15000          # mandatory ceiling, Rs./month
+eps_wage_ceiling = 15000      # EPS diversion capped at 8.33% of this
+admin_charge_rate = 0.005     # A/c 2 admin charges (employer)
+edli_rate = 0.005             # A/c 21 EDLI (employer)
+apply_ceiling_to_employee = true
+
+[epf.ceiling_hike]
+enabled = false               # set true once notified for your establishment
+wage_ceiling = 25000
+eps_wage_ceiling = 25000
+effective_from = "2026-09-17"
+note = "Announced hike; configurable per establishment. When enabled, payslips dated on/after effective_from use the new ceiling."
+
+[esi]
+employee_rate = 0.0075
+employer_rate = 0.0325
+wage_ceiling = 21000
+wage_ceiling_disability = 25000
+round_up_to_rupee = true
+
+[tds]
+default_regime = "new"
+cess_rate = 0.04
+marginal_relief = true
+standard_deduction_new = 75000
+standard_deduction_old = 50000
+# Section 87A
+rebate_new_income_limit = 1200000
+rebate_new_max = 60000
+rebate_old_income_limit = 500000
+rebate_old_max = 12500
+# Chapter VI-A caps used for the old regime
+cap_80c = 150000
+cap_80d = 25000
+cap_80ccd_1b = 50000
+cap_home_loan_interest = 200000
+hra_exemption_enabled = true
+
+# New regime — s.115BAC (default). Last slab has no upper bound.
+[[tds.new_regime_slabs]]
+up_to = 400000
+rate = 0.0
+[[tds.new_regime_slabs]]
+up_to = 800000
+rate = 0.05
+[[tds.new_regime_slabs]]
+up_to = 1200000
+rate = 0.10
+[[tds.new_regime_slabs]]
+up_to = 1600000
+rate = 0.15
+[[tds.new_regime_slabs]]
+up_to = 2000000
+rate = 0.20
+[[tds.new_regime_slabs]]
+up_to = 2400000
+rate = 0.25
+[[tds.new_regime_slabs]]
+rate = 0.30
+
+# Old regime — optional for employees who elect out of s.115BAC.
+[[tds.old_regime_slabs]]
+up_to = 250000
+rate = 0.0
+[[tds.old_regime_slabs]]
+up_to = 500000
+rate = 0.05
+[[tds.old_regime_slabs]]
+up_to = 1000000
+rate = 0.20
+[[tds.old_regime_slabs]]
+rate = 0.30
+
+# Surcharge on tax (before cess). New regime surcharge is capped at 25%.
+[[tds.surcharge_slabs]]
+up_to = 5000000
+rate = 0.0
+[[tds.surcharge_slabs]]
+up_to = 10000000
+rate = 0.10
+[[tds.surcharge_slabs]]
+up_to = 20000000
+rate = 0.15
+[[tds.surcharge_slabs]]
+up_to = 50000000
+rate = 0.25
+[[tds.surcharge_slabs]]
+rate = 0.25
+
+[professional_tax]
+annual_cap = 2500            # Article 276(2) constitutional ceiling
+currency = "INR"
+
+# Maharashtra — monthly. Women exempt up to Rs.25,000/month.
+[[professional_tax.states]]
+code = "MH"
+name = "Maharashtra"
+cycle = "monthly"
+female_exemption_upto = 25000
+february_surcharge = 100
+[[professional_tax.states.slabs]]
+up_to = 7500
+amount = 0
+[[professional_tax.states.slabs]]
+up_to = 10000
+amount = 175
+[[professional_tax.states.slabs]]
+amount = 200
+
+# Karnataka — monthly, Rs.200 above Rs.25,000, Rs.300 in February.
+[[professional_tax.states]]
+code = "KA"
+name = "Karnataka"
+cycle = "monthly"
+female_exemption_upto = 0
+february_surcharge = 100
+[[professional_tax.states.slabs]]
+up_to = 15000
+amount = 0
+[[professional_tax.states.slabs]]
+up_to = 25000
+amount = 200
+[[professional_tax.states.slabs]]
+amount = 200
+
+# West Bengal — monthly.
+[[professional_tax.states]]
+code = "WB"
+name = "West Bengal"
+cycle = "monthly"
+female_exemption_upto = 0
+february_surcharge = 0
+[[professional_tax.states.slabs]]
+up_to = 10000
+amount = 0
+[[professional_tax.states.slabs]]
+up_to = 15000
+amount = 110
+[[professional_tax.states.slabs]]
+up_to = 25000
+amount = 130
+[[professional_tax.states.slabs]]
+up_to = 40000
+amount = 150
+[[professional_tax.states.slabs]]
+amount = 200
+
+# Tamil Nadu — statute is half-yearly; engine splits it over the six
+# months of the cycle (Apr-Sep, Oct-Mar) and trues-up in the last month.
+[[professional_tax.states]]
+code = "TN"
+name = "Tamil Nadu"
+cycle = "half_yearly"
+female_exemption_upto = 0
+february_surcharge = 0
+[[professional_tax.states.slabs]]
+up_to = 21000
+amount = 0
+[[professional_tax.states.slabs]]
+up_to = 30000
+amount = 135
+[[professional_tax.states.slabs]]
+up_to = 45000
+amount = 315
+[[professional_tax.states.slabs]]
+up_to = 60000
+amount = 690
+[[professional_tax.states.slabs]]
+up_to = 75000
+amount = 1025
+[[professional_tax.states.slabs]]
+amount = 1250
+
+[gratuity]
+min_service_years = 5
+fixed_term_min_years = 1
+wage_cap = 2000000
+days_numerator = 15
+divisor_days = 26
+wage_50pct_rule = true
+# Service of more than 6 months in the final year is rounded up to one year.
+round_partial_year_months = 6
+
+[compliance]
+records_retention_years = 7
+pf_filing_day = 15
+esi_filing_day = 15
+pt_filing_day = 20
+tds_quarterly = true
+financial_year_start_month = 4

@@ -1,0 +1,4 @@
+uniqueid,call_start,call_answer,call_end,direction,queue,agent_ext,disposition,wait_seconds,talk_seconds,hold_seconds,wrap_seconds,abandoned,customer_number
+demo-0001,2026-11-26 09:05:12,2026-11-26 09:05:39,2026-11-26 09:11:02,inbound,support,1004,RESOLVED,27,323,14,18,0,+919800000001
+demo-0002,2026-11-26 09:06:40,,2026-11-26 09:07:31,inbound,sales,,ABANDONED,51,0,0,0,1,+919800000002
+demo-0003,2026-11-26 09:08:05,2026-11-26 09:08:20,2026-11-26 09:14:47,outbound,retention,1006,CALLBACK,15,387,9,22,0,+919800000003
